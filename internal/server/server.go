@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -14,6 +15,17 @@ import (
 
 // Package server implements the RSK server components including
 // the main server, registry, SOCKS5 manager, and connection handler.
+
+// Server represents the RSK server instance
+type Server struct {
+	listenAddr string
+	bindIP     string
+	token      []byte
+	portMin    int
+	portMax    int
+	registry   *Registry
+	logger     *zap.Logger
+}
 
 // handleClientConnection handles a single client connection through the complete lifecycle:
 // handshake, validation, port reservation, session establishment, and cleanup.
@@ -261,5 +273,78 @@ func sendErrorResponse(conn net.Conn, status uint8, message string, logger *zap.
 
 	if err := proto.WriteHelloResp(conn, resp); err != nil {
 		logger.Error("Failed to write error response", zap.Uint8("status", status), zap.Error(err))
+	}
+}
+
+// NewServer creates a new Server instance
+func NewServer(listenAddr, bindIP string, token []byte, portMin, portMax int, logger *zap.Logger) *Server {
+	return &Server{
+		listenAddr: listenAddr,
+		bindIP:     bindIP,
+		token:      token,
+		portMin:    portMin,
+		portMax:    portMax,
+		registry:   NewRegistry(),
+		logger:     logger,
+	}
+}
+
+// Start starts the server and begins accepting client connections.
+// It creates a TCP listener on listenAddr and spawns a goroutine for each connection.
+// The server runs until the context is cancelled.
+func (s *Server) Start(ctx context.Context) error {
+	// Create TCP listener on listenAddr
+	listener, err := net.Listen("tcp", s.listenAddr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", s.listenAddr, err)
+	}
+	defer listener.Close()
+
+	s.logger.Info("Server listening", zap.String("address", s.listenAddr))
+
+	// Create SOCKS manager
+	socksManager := NewSOCKSManager(s.registry, s.logger)
+
+	// Channel to signal listener to stop
+	done := make(chan struct{})
+	defer close(done)
+
+	// Handle context cancellation
+	go func() {
+		select {
+		case <-ctx.Done():
+			s.logger.Info("Shutting down server")
+			listener.Close()
+		case <-done:
+		}
+	}()
+
+	// Accept loop: spawn goroutine for each connection
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				// Context cancelled, this is expected
+				return ctx.Err()
+			default:
+				// Unexpected error
+				s.logger.Error("Failed to accept connection", zap.Error(err))
+				continue
+			}
+		}
+
+		s.logger.Info("Accepted new connection", zap.String("remote_addr", conn.RemoteAddr().String()))
+
+		// Spawn goroutine for each accepted connection
+		go handleClientConnection(
+			conn,
+			s.token,
+			s.portMin,
+			s.portMax,
+			s.registry,
+			socksManager,
+			s.logger,
+		)
 	}
 }
