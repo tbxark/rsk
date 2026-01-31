@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  rsk-server:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.server
+    container_name: rsk-server
+    restart: unless-stopped
+    ports:
+      - "7000:7000"
+      - "20000-20010:20000-20010"
+    environment:
+      - RSK_TOKEN=${RSK_TOKEN:-change-me-to-secure-token}
+    command:
+      - --listen
+      - ":7000"
+      - --token
+      - "${RSK_TOKEN:-change-me-to-secure-token}"
+      - --bind
+      - "0.0.0.0"
+      - --port-range
+      - "20000-25000"
+    networks:
+      - rsk-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rsk-client-1:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.client
+    container_name: rsk-client-1
+    restart: unless-stopped
+    depends_on:
+      - rsk-server
+    environment:
+      - RSK_TOKEN=${RSK_TOKEN:-change-me-to-secure-token}
+    command:
+      - --server
+      - "rsk-server:7000"
+      - --token
+      - "${RSK_TOKEN:-change-me-to-secure-token}"
+      - --ports
+      - "20001"
+      - --name
+      - "client-1"
+    networks:
+      - rsk-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rsk-client-2:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.client
+    container_name: rsk-client-2
+    restart: unless-stopped
+    depends_on:
+      - rsk-server
+    environment:
+      - RSK_TOKEN=${RSK_TOKEN:-change-me-to-secure-token}
+    command:
+      - --server
+      - "rsk-server:7000"
+      - --token
+      - "${RSK_TOKEN:-change-me-to-secure-token}"
+      - --ports
+      - "20002,20003"
+      - --name
+      - "client-2"
+    networks:
+      - rsk-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  rsk-network:
+    driver: bridge

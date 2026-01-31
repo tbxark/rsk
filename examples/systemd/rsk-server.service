@@ -1,0 +1,39 @@
+[Unit]
+Description=RSK Server - Reverse SOCKS5 Proxy Server
+After=network.target
+Documentation=https://github.com/tbxark/rsk
+
+[Service]
+Type=simple
+User=rsk
+Group=rsk
+WorkingDirectory=/opt/rsk
+
+# Server configuration
+Environment="RSK_TOKEN=CHANGE_ME_TO_SECURE_TOKEN"
+ExecStart=/opt/rsk/rsk-server \
+  --listen :7000 \
+  --token ${RSK_TOKEN} \
+  --bind 127.0.0.1 \
+  --port-range 20000-40000
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/rsk
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rsk-server
+
+[Install]
+WantedBy=multi-user.target
