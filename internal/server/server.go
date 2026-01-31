@@ -204,21 +204,21 @@ func handleClientConnection(
 
 	// Start SOCKS5 server for each port and register session with all ports in registry
 	for _, port := range ports {
+		// Close the TCP listener before starting SOCKS5 listener
+		if tcpListener, ok := listeners[port]; ok {
+			tcpListener.Close()
+		}
+
 		// Start SOCKS5 listener using socksManager
 		socksListener, err := socksManager.StartListener(port, session)
 		if err != nil {
 			logger.Error("Failed to start SOCKS5 listener", zap.Int("port", port), zap.Error(err))
-			// Close session and all listeners
+			// Close session and all remaining listeners
 			session.Close()
 			for _, l := range listeners {
 				l.Close()
 			}
 			return
-		}
-
-		// Close the TCP listener since SOCKS5 manager created its own
-		if tcpListener, ok := listeners[port]; ok {
-			tcpListener.Close()
 		}
 
 		// Register session with port in registry
