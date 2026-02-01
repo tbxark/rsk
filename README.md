@@ -18,12 +18,12 @@ RSK (Reverse SOCKS over Yamux) is a reverse SOCKS5 proxy system that enables mul
 │ Application │──SOCKS5:20001──────│              │
 └─────────────┘                    │              │
                                    │  RSK Server  │──Control TCP──┐
-┌─────────────┐                    │  (127.0.0.1) │              │
-│ Application │──SOCKS5:20002──────│              │              │
-└─────────────┘                    └──────────────┘              │
-                                                                 │
-                                   ┌──────────────┐              │
-                                   │ RSK Client 1 │──────────────┘
+┌─────────────┐                    │  (127.0.0.1) │               │
+│ Application │──SOCKS5:20002──────│              │               │
+└─────────────┘                    └──────────────┘               │
+                                                                  │
+                                   ┌──────────────┐               │
+                                   │ RSK Client 1 │──────────-────┘
                                    │ (Exit Node)  │
                                    └──────────────┘
                                           │

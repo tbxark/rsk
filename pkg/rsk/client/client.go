@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/yamux"
 	"github.com/tbxark/rsk/pkg/rsk/common"
 	"github.com/tbxark/rsk/pkg/rsk/proto"
@@ -15,9 +16,9 @@ import (
 
 // Client connects to RSK server and handles outbound connections.
 type Client struct {
-	Config         *Config       // Client configuration
-	ReconnectDelay time.Duration // Delay between reconnection attempts
-	Logger         *zap.Logger   // Logger instance
+	Config         *Config
+	ReconnectDelay time.Duration
+	Logger         *zap.Logger
 }
 
 func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFilter, logger *zap.Logger) {
@@ -204,7 +205,7 @@ func (c *Client) handleStreams(session *yamux.Session, filter *AddressFilter) er
 	}
 }
 
-// Run starts the client with automatic reconnection.
+// Run starts the client with automatic reconnection using exponential backoff.
 func (c *Client) Run(ctx context.Context) error {
 	// Create address filter
 	filter, err := NewAddressFilter(c.Config.AllowPrivateNetworks, c.Config.BlockedNetworks)
@@ -217,60 +218,64 @@ func (c *Client) Run(ctx context.Context) error {
 		zap.Bool("allow_private", c.Config.AllowPrivateNetworks),
 		zap.Int("blocked_networks_count", len(c.Config.BlockedNetworks)))
 
-	for {
+	// Configure exponential backoff
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = c.ReconnectDelay
+	b.MaxInterval = 30 * time.Second
+	b.MaxElapsedTime = 0 // Never stop retrying
+	b.Multiplier = 2.0
+	b.RandomizationFactor = 0.1
+
+	backoffWithContext := backoff.WithContext(b, ctx)
+
+	attempt := 0
+	operation := func() error {
+		attempt++
+
 		select {
 		case <-ctx.Done():
 			c.Logger.Info("Client shutting down")
-			return ctx.Err()
+			return backoff.Permanent(ctx.Err())
 		default:
 		}
 
-		c.Logger.Info("Connecting to server", zap.String("server", c.Config.ServerAddr))
+		c.Logger.Info("Connecting to server",
+			zap.String("server", c.Config.ServerAddr),
+			zap.Int("attempt", attempt))
 
 		session, err := c.connect()
 		if err != nil {
 			if hsErr, ok := err.(*HandshakeError); ok {
 				if hsErr.IsAuthFail() {
 					c.Logger.Error("Authentication failed, exiting", zap.Error(err))
-					return err
+					return backoff.Permanent(err)
 				}
 
 				if hsErr.IsPortInUse() {
 					c.Logger.Error("Ports already in use, exiting", zap.Error(err))
-					return err
+					return backoff.Permanent(err)
 				}
 
-				c.Logger.Warn("Handshake failed, will retry",
-					zap.Error(err),
-					zap.Duration("delay", c.ReconnectDelay))
+				c.Logger.Warn("Handshake failed, will retry", zap.Error(err))
 			} else {
-				c.Logger.Warn("Connection failed, will retry",
-					zap.Error(err),
-					zap.Duration("delay", c.ReconnectDelay))
+				c.Logger.Warn("Connection failed, will retry", zap.Error(err))
 			}
-
-			select {
-			case <-time.After(c.ReconnectDelay):
-				continue
-			case <-ctx.Done():
-				return ctx.Err()
-			}
+			return err
 		}
+
+		// Reset attempt counter on successful connection
+		attempt = 0
+		b.Reset()
 
 		c.Logger.Info("Session established, handling streams")
 		err = c.handleStreams(session, filter)
 
-		c.Logger.Warn("Session closed, will reconnect",
-			zap.Error(err),
-			zap.Duration("delay", c.ReconnectDelay))
-
+		c.Logger.Warn("Session closed, will reconnect", zap.Error(err))
 		_ = session.Close()
 
-		select {
-		case <-time.After(c.ReconnectDelay):
-			continue
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		// Return error to trigger backoff
+		return err
 	}
+
+	return backoff.Retry(operation, backoffWithContext)
 }

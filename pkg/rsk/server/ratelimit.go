@@ -3,18 +3,14 @@ package server
 import (
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
-// failureRecord tracks authentication failures for an IP address
-type failureRecord struct {
-	count     int
-	blockedAt time.Time
-}
-
-// RateLimiter tracks and limits authentication failures per IP address
-type RateLimiter struct {
+// IPRateLimiter tracks rate limiters per IP address for authentication attempts.
+type IPRateLimiter struct {
 	mu            sync.RWMutex
-	failures      map[string]*failureRecord
+	limiters      map[string]*ipLimiterEntry
 	maxFailures   int
 	blockDuration time.Duration
 	cleanupTicker *time.Ticker
@@ -22,58 +18,63 @@ type RateLimiter struct {
 	closeOnce     sync.Once
 }
 
-// NewRateLimiter creates a new rate limiter with the specified parameters
-func NewRateLimiter(maxFailures int, blockDuration time.Duration) *RateLimiter {
-	rl := &RateLimiter{
-		failures:      make(map[string]*failureRecord),
+type ipLimiterEntry struct {
+	limiter   *rate.Limiter
+	failures  int
+	blockedAt time.Time
+}
+
+// NewRateLimiter creates a new IP-based rate limiter.
+func NewRateLimiter(maxFailures int, blockDuration time.Duration) *IPRateLimiter {
+	rl := &IPRateLimiter{
+		limiters:      make(map[string]*ipLimiterEntry),
 		maxFailures:   maxFailures,
 		blockDuration: blockDuration,
 		cleanupTicker: time.NewTicker(1 * time.Minute),
 		stopCleanup:   make(chan struct{}),
 	}
 
-	// Start background cleanup goroutine
 	go rl.cleanupLoop()
 
 	return rl
 }
 
-// RecordFailure records an authentication failure for the given IP
-// Returns true if the IP should be blocked
-func (rl *RateLimiter) RecordFailure(ip string) bool {
+// RecordFailure records an authentication failure. Returns true if IP should be blocked.
+func (rl *IPRateLimiter) RecordFailure(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	record, exists := rl.failures[ip]
+	entry, exists := rl.limiters[ip]
 	if !exists {
-		record = &failureRecord{count: 0}
-		rl.failures[ip] = record
+		entry = &ipLimiterEntry{
+			limiter:  rate.NewLimiter(rate.Every(time.Second), rl.maxFailures),
+			failures: 0,
+		}
+		rl.limiters[ip] = entry
 	}
 
-	record.count++
+	entry.failures++
 
-	// Check if threshold reached
-	if record.count >= rl.maxFailures {
-		record.blockedAt = time.Now()
+	if entry.failures >= rl.maxFailures {
+		entry.blockedAt = time.Now()
 		return true
 	}
 
 	return false
 }
 
-// IsBlocked checks if the given IP is currently blocked
-func (rl *RateLimiter) IsBlocked(ip string) bool {
+// IsBlocked checks if the given IP is currently blocked.
+func (rl *IPRateLimiter) IsBlocked(ip string) bool {
 	rl.mu.RLock()
 	defer rl.mu.RUnlock()
 
-	record, exists := rl.failures[ip]
+	entry, exists := rl.limiters[ip]
 	if !exists {
 		return false
 	}
 
-	// Check if block has expired
-	if !record.blockedAt.IsZero() {
-		if time.Since(record.blockedAt) < rl.blockDuration {
+	if !entry.blockedAt.IsZero() {
+		if time.Since(entry.blockedAt) < rl.blockDuration {
 			return true
 		}
 	}
@@ -81,16 +82,15 @@ func (rl *RateLimiter) IsBlocked(ip string) bool {
 	return false
 }
 
-// Reset clears the failure record for the given IP
-func (rl *RateLimiter) Reset(ip string) {
+// Reset clears the failure record for the given IP.
+func (rl *IPRateLimiter) Reset(ip string) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	delete(rl.failures, ip)
+	delete(rl.limiters, ip)
 }
 
-// cleanupLoop periodically removes expired entries
-func (rl *RateLimiter) cleanupLoop() {
+func (rl *IPRateLimiter) cleanupLoop() {
 	for {
 		select {
 		case <-rl.cleanupTicker.C:
@@ -101,22 +101,20 @@ func (rl *RateLimiter) cleanupLoop() {
 	}
 }
 
-// cleanup removes expired entries from the failures map
-func (rl *RateLimiter) cleanup() {
+func (rl *IPRateLimiter) cleanup() {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	for ip, record := range rl.failures {
-		// Remove entries where block expired more than blockDuration ago
-		if !record.blockedAt.IsZero() && now.Sub(record.blockedAt) > rl.blockDuration*2 {
-			delete(rl.failures, ip)
+	for ip, entry := range rl.limiters {
+		if !entry.blockedAt.IsZero() && now.Sub(entry.blockedAt) > rl.blockDuration*2 {
+			delete(rl.limiters, ip)
 		}
 	}
 }
 
-// Close stops the cleanup goroutine and releases resources
-func (rl *RateLimiter) Close() {
+// Close stops the cleanup goroutine.
+func (rl *IPRateLimiter) Close() {
 	rl.closeOnce.Do(func() {
 		close(rl.stopCleanup)
 		rl.cleanupTicker.Stop()

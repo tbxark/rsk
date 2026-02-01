@@ -90,7 +90,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	if resp1.Status != proto.StatusAuthFail {
 		t.Errorf("Expected StatusAuthFail, got %d", resp1.Status)
 	}
-	conn1.Close()
+	_ = conn1.Close()
 
 	// Test 2: Second failed auth attempt should trigger block
 	conn2, err := net.Dial("tcp", "127.0.0.1:17000")
@@ -110,7 +110,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	if resp2.Status != proto.StatusAuthFail {
 		t.Errorf("Expected StatusAuthFail, got %d", resp2.Status)
 	}
-	conn2.Close()
+	_ = conn2.Close()
 
 	// Test 3: Third attempt should be blocked immediately
 	conn3, err := net.Dial("tcp", "127.0.0.1:17000")
@@ -119,13 +119,13 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	}
 
 	// Connection should be closed immediately without response
-	conn3.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	_ = conn3.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 	buf := make([]byte, 1)
 	_, err = conn3.Read(buf)
 	if err == nil {
 		t.Error("Expected connection to be closed, but read succeeded")
 	}
-	conn3.Close()
+	_ = conn3.Close()
 
 	// Test 4: Wait for block to expire
 	time.Sleep(150 * time.Millisecond)
@@ -150,7 +150,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	if resp4.Status != proto.StatusOK {
 		t.Errorf("Expected StatusOK after block expiration with correct token, got %d", resp4.Status)
 	}
-	conn4.Close()
+	_ = conn4.Close()
 
 	// Test 5: After successful auth, counter should be reset
 	// Try with wrong token again - should not be blocked immediately
@@ -172,7 +172,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	if resp5.Status != proto.StatusAuthFail {
 		t.Errorf("Expected StatusAuthFail, got %d", resp5.Status)
 	}
-	conn5.Close()
+	_ = conn5.Close()
 
 	// Cleanup
 	cancel()

@@ -29,13 +29,13 @@ func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 
 	// Create mock yamux session
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = server.Close() }()
 
 	yamuxConfig := yamux.DefaultConfig()
 	sess, err := yamux.Server(server, yamuxConfig)
 	require.NoError(t, err)
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	mockListener := &mockNetListener{}
 	meta := ClientMeta{ClientName: "test"}
@@ -52,7 +52,7 @@ func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 	// First connection should succeed
 	conn1, err := dialer(ctx, "tcp", "example.com:80")
 	if err == nil {
-		defer conn1.Close()
+		defer func() { _ = conn1.Close() }()
 		assert.Equal(t, 1, registry.GetConnectionCount(port))
 	}
 
@@ -75,13 +75,13 @@ func TestSOCKSManager_ConnectionLimit(t *testing.T) {
 
 	// Create mock yamux session
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = server.Close() }()
 
 	yamuxConfig := yamux.DefaultConfig()
 	sess, err := yamux.Server(server, yamuxConfig)
 	require.NoError(t, err)
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	mockListener := &mockNetListener{}
 	meta := ClientMeta{ClientName: "test"}
@@ -133,7 +133,7 @@ func TestConnCountingStream_Close(t *testing.T) {
 
 	// Create a mock connection
 	client, server := net.Pipe()
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	// Wrap it in connCountingStream
 	stream := &connCountingStream{
@@ -181,7 +181,7 @@ func TestConnCountingStream_CloseIdempotent(t *testing.T) {
 
 	// Create a mock connection
 	client, server := net.Pipe()
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	// Wrap it in connCountingStream
 	stream := &connCountingStream{
@@ -230,7 +230,7 @@ func TestConnCountingStream_ConcurrentClose(t *testing.T) {
 
 	// Create a mock connection
 	client, server := net.Pipe()
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	// Wrap it in connCountingStream
 	stream := &connCountingStream{
@@ -283,7 +283,7 @@ func TestSOCKSManager_MultipleConnections(t *testing.T) {
 		assert.True(t, registry.IncrementConnections(port))
 
 		client, server := net.Pipe()
-		defer server.Close()
+		defer func() { _ = server.Close() }()
 
 		stream := &connCountingStream{
 			Conn:     client,
@@ -334,7 +334,7 @@ func TestSOCKSManager_ConnectionLifecycle(t *testing.T) {
 	// Create first connection
 	assert.True(t, registry.IncrementConnections(port))
 	client1, server1 := net.Pipe()
-	defer server1.Close()
+	defer func() { _ = server1.Close() }()
 	stream1 := &connCountingStream{
 		Conn:     client1,
 		port:     port,
@@ -345,7 +345,7 @@ func TestSOCKSManager_ConnectionLifecycle(t *testing.T) {
 	// Create second connection
 	assert.True(t, registry.IncrementConnections(port))
 	client2, server2 := net.Pipe()
-	defer server2.Close()
+	defer func() { _ = server2.Close() }()
 	stream2 := &connCountingStream{
 		Conn:     client2,
 		port:     port,
@@ -367,7 +367,7 @@ func TestSOCKSManager_ConnectionLifecycle(t *testing.T) {
 	// Now we should be able to create a new connection
 	assert.True(t, registry.IncrementConnections(port))
 	client3, server3 := net.Pipe()
-	defer server3.Close()
+	defer func() { _ = server3.Close() }()
 	stream3 := &connCountingStream{
 		Conn:     client3,
 		port:     port,
@@ -378,8 +378,8 @@ func TestSOCKSManager_ConnectionLifecycle(t *testing.T) {
 	assert.Equal(t, 2, registry.GetConnectionCount(port))
 
 	// Clean up
-	stream2.Close()
-	stream3.Close()
+	_ = stream2.Close()
+	_ = stream3.Close()
 	assert.Equal(t, 0, registry.GetConnectionCount(port))
 }
 
@@ -398,13 +398,13 @@ func TestSOCKSManager_ErrorHandling(t *testing.T) {
 
 	// Create mock yamux session
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = server.Close() }()
 
 	yamuxConfig := yamux.DefaultConfig()
 	sess, err := yamux.Server(server, yamuxConfig)
 	require.NoError(t, err)
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	mockListener := &mockNetListener{}
 	meta := ClientMeta{ClientName: "test"}
@@ -438,13 +438,13 @@ func TestSOCKSManager_PortNotFound(t *testing.T) {
 
 	// Create mock yamux session
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = server.Close() }()
 
 	yamuxConfig := yamux.DefaultConfig()
 	sess, err := yamux.Server(server, yamuxConfig)
 	require.NoError(t, err)
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	// Create dialer for non-existent port
 	dialer := socksManager.createDialer(port, sess)
@@ -489,8 +489,8 @@ func TestSOCKSManager_RapidConnectionCycling(t *testing.T) {
 		}
 
 		// Close immediately
-		stream.Close()
-		server.Close()
+		_ = stream.Close()
+		_ = server.Close()
 
 		// Give a tiny bit of time for cleanup
 		time.Sleep(1 * time.Millisecond)
@@ -568,7 +568,7 @@ func TestSOCKSManager_StartListener(t *testing.T) {
 	require.NoError(t, err)
 	addr := listener.Addr().(*net.TCPAddr)
 	port := addr.Port
-	listener.Close()
+	_ = listener.Close()
 
 	// Reserve the port
 	release, err := registry.ReservePorts([]int{port})
@@ -577,19 +577,19 @@ func TestSOCKSManager_StartListener(t *testing.T) {
 
 	// Create mock yamux session
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = server.Close() }()
 
 	yamuxConfig := yamux.DefaultConfig()
 	sess, err := yamux.Server(server, yamuxConfig)
 	require.NoError(t, err)
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	// Start SOCKS5 listener
 	socksListener, err := socksManager.StartListener(port, sess)
 	require.NoError(t, err)
 	require.NotNil(t, socksListener)
-	defer socksListener.Close()
+	defer func() { _ = socksListener.Close() }()
 
 	// Verify listener is bound to correct address
 	expectedAddr := fmt.Sprintf("127.0.0.1:%d", port)

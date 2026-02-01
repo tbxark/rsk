@@ -19,8 +19,8 @@ func TestNewRateLimiter(t *testing.T) {
 	if rl.blockDuration != 5*time.Minute {
 		t.Errorf("Expected blockDuration=5m, got %v", rl.blockDuration)
 	}
-	if rl.failures == nil {
-		t.Error("failures map not initialized")
+	if rl.limiters == nil {
+		t.Error("limiters map not initialized")
 	}
 }
 
@@ -45,16 +45,16 @@ func TestRecordFailure(t *testing.T) {
 
 	// Verify the record exists
 	rl.mu.RLock()
-	record, exists := rl.failures[ip]
+	entry, exists := rl.limiters[ip]
 	rl.mu.RUnlock()
 
 	if !exists {
 		t.Fatal("Failure record not created")
 	}
-	if record.count != 3 {
-		t.Errorf("Expected count=3, got %d", record.count)
+	if entry.failures != 3 {
+		t.Errorf("Expected failures=3, got %d", entry.failures)
 	}
-	if record.blockedAt.IsZero() {
+	if entry.blockedAt.IsZero() {
 		t.Error("blockedAt should be set after threshold reached")
 	}
 }
@@ -100,7 +100,7 @@ func TestReset(t *testing.T) {
 
 	// Verify record exists
 	rl.mu.RLock()
-	_, exists := rl.failures[ip]
+	_, exists := rl.limiters[ip]
 	rl.mu.RUnlock()
 	if !exists {
 		t.Fatal("Failure record should exist")
@@ -111,7 +111,7 @@ func TestReset(t *testing.T) {
 
 	// Verify record removed
 	rl.mu.RLock()
-	_, exists = rl.failures[ip]
+	_, exists = rl.limiters[ip]
 	rl.mu.RUnlock()
 	if exists {
 		t.Error("Failure record should be removed after reset")
@@ -135,7 +135,7 @@ func TestCleanup(t *testing.T) {
 
 	// Verify record exists
 	rl.mu.RLock()
-	_, exists := rl.failures[ip]
+	_, exists := rl.limiters[ip]
 	rl.mu.RUnlock()
 	if !exists {
 		t.Fatal("Failure record should exist")
@@ -149,7 +149,7 @@ func TestCleanup(t *testing.T) {
 
 	// Verify record removed
 	rl.mu.RLock()
-	_, exists = rl.failures[ip]
+	_, exists = rl.limiters[ip]
 	rl.mu.RUnlock()
 	if exists {
 		t.Error("Failure record should be cleaned up")

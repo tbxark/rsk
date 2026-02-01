@@ -1,44 +1,47 @@
 package server
 
-// ConnectionLimiter enforces a maximum number of concurrent connections
-// using a semaphore pattern with a buffered channel.
+import (
+	"golang.org/x/sync/semaphore"
+)
+
+// ConnectionLimiter enforces a maximum number of concurrent connections.
 type ConnectionLimiter struct {
-	semaphore chan struct{}
-	maxConns  int
+	sem      *semaphore.Weighted
+	maxConns int64
 }
 
-// NewConnectionLimiter creates a new connection limiter with the specified
-// maximum number of concurrent connections.
+// NewConnectionLimiter creates a new connection limiter.
 func NewConnectionLimiter(maxConns int) *ConnectionLimiter {
 	return &ConnectionLimiter{
-		semaphore: make(chan struct{}, maxConns),
-		maxConns:  maxConns,
+		sem:      semaphore.NewWeighted(int64(maxConns)),
+		maxConns: int64(maxConns),
 	}
 }
 
-// Acquire attempts to acquire a connection slot. Returns true if successful,
-// false if the limit has been reached. This is a non-blocking operation.
+// Acquire attempts to acquire a connection slot (non-blocking).
 func (cl *ConnectionLimiter) Acquire() bool {
-	select {
-	case cl.semaphore <- struct{}{}:
-		return true
-	default:
-		return false
-	}
+	return cl.sem.TryAcquire(1)
 }
 
-// Release releases a connection slot, making it available for new connections.
-// This should be called in a defer statement to ensure slots are always released.
+// Release releases a connection slot.
 func (cl *ConnectionLimiter) Release() {
-	select {
-	case <-cl.semaphore:
-	default:
-		// Should not happen in normal operation, but prevents panic
-	}
+	cl.sem.Release(1)
 }
 
 // Available returns the number of available connection slots.
-// This is useful for metrics and monitoring.
 func (cl *ConnectionLimiter) Available() int {
-	return cl.maxConns - len(cl.semaphore)
+	acquired := int64(0)
+	for i := int64(0); i < cl.maxConns; i++ {
+		if cl.sem.TryAcquire(1) {
+			acquired++
+		} else {
+			break
+		}
+	}
+
+	if acquired > 0 {
+		cl.sem.Release(acquired)
+	}
+
+	return int(acquired)
 }

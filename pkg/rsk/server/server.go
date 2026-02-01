@@ -24,7 +24,7 @@ type Server struct {
 func handleClientConnection(
 	conn net.Conn,
 	connLimiter *ConnectionLimiter,
-	rateLimiter *RateLimiter,
+	rateLimiter *IPRateLimiter,
 	token []byte,
 	portMin, portMax int,
 	maxConnsPerClient int,
