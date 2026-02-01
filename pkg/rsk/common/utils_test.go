@@ -69,51 +69,50 @@ func TestTokenEqual(t *testing.T) {
 }
 
 func TestSetReadDeadline(t *testing.T) {
-	// Create a pipe to test deadline functionality
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+	}()
+	defer func() {
+		_ = client.Close()
+	}()
 
-	// Set a read deadline
 	timeout := 100 * time.Millisecond
 	err := SetReadDeadline(client, timeout)
 	require.NoError(t, err)
 
-	// Try to read - should timeout
 	buf := make([]byte, 10)
 	start := time.Now()
 	_, err = client.Read(buf)
 	elapsed := time.Since(start)
 
-	// Should get a timeout error
 	assert.Error(t, err)
 	netErr, ok := err.(net.Error)
 	require.True(t, ok, "error should be a net.Error")
 	assert.True(t, netErr.Timeout(), "error should be a timeout")
 
-	// Should timeout around the specified duration
 	assert.True(t, elapsed >= timeout, "should wait at least the timeout duration")
 	assert.True(t, elapsed < timeout*2, "should not wait much longer than timeout")
 }
 
 func TestClearDeadline(t *testing.T) {
-	// Create a pipe to test deadline functionality
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() {
+		_ = server.Close()
+	}()
+	defer func() {
+		_ = client.Close()
+	}()
 
-	// Set a deadline first
 	err := SetReadDeadline(client, 100*time.Millisecond)
 	require.NoError(t, err)
 
-	// Clear the deadline
 	err = ClearDeadline(client)
 	require.NoError(t, err)
 
-	// Start a goroutine to write after a delay
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		server.Write([]byte("test"))
+		_, _ = server.Write([]byte("test"))
 	}()
 
 	// Try to read - should succeed without timeout

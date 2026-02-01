@@ -7,29 +7,24 @@ import (
 	"github.com/hashicorp/yamux"
 )
 
-// ClientSlot represents a client's port allocation and associated resources
 type ClientSlot struct {
-	// Immutable after creation
-	port       int
-	clientName string
-	clientID   string // UUID for logging
+	port       int    // Port number
+	clientName string // Client name
+	clientID   string // Client UUID
 
-	// Mutable (protected by Registry mutex)
-	session       *yamux.Session
-	socksListener net.Listener
+	session       *yamux.Session // Yamux session
+	socksListener net.Listener   // SOCKS5 listener
 
-	// Cleanup coordination
-	stopOnce sync.Once
-	stopFunc func()
+	stopOnce sync.Once // Ensures cleanup happens once
+	stopFunc func()    // Custom cleanup function
 }
 
-// Registry manages port allocations and client sessions
 type Registry struct {
-	mu    sync.RWMutex
-	slots map[int]*ClientSlot
+	mu    sync.RWMutex        // Protects slots
+	slots map[int]*ClientSlot // Port to client slot mapping
 }
 
-// NewRegistry creates a new Registry instance
+// NewRegistry creates a new Registry.
 func NewRegistry() *Registry {
 	return &Registry{
 		slots: make(map[int]*ClientSlot),
@@ -37,28 +32,22 @@ func NewRegistry() *Registry {
 }
 
 // ReservePorts atomically reserves the specified ports.
-// Returns a release function that can be called to release the reservation,
-// or an error if any port is already reserved.
-// All ports must be available or none are reserved (atomic operation).
 func (r *Registry) ReservePorts(ports []int) (releaseFunc func(), err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Check all ports are available atomically
 	for _, port := range ports {
 		if _, exists := r.slots[port]; exists {
 			return nil, &PortInUseError{Port: port}
 		}
 	}
 
-	// Reserve all ports with placeholder slots
 	for _, port := range ports {
 		r.slots[port] = &ClientSlot{
 			port: port,
 		}
 	}
 
-	// Return release function for cleanup
 	released := false
 	releaseFunc = func() {
 		r.mu.Lock()
@@ -77,7 +66,6 @@ func (r *Registry) ReservePorts(ports []int) (releaseFunc func(), err error) {
 	return releaseFunc, nil
 }
 
-// PortInUseError indicates a port is already reserved
 type PortInUseError struct {
 	Port int
 }
@@ -86,14 +74,12 @@ func (e *PortInUseError) Error() string {
 	return "port already in use"
 }
 
-// ClientMeta contains metadata about a client
 type ClientMeta struct {
-	ClientName string
-	ClientID   string
+	ClientName string // Client name
+	ClientID   string // Client UUID
 }
 
 // BindSession associates a yamux session and SOCKS listener with a reserved port.
-// The port must have been previously reserved via ReservePorts.
 func (r *Registry) BindSession(port int, sess *yamux.Session, listener net.Listener, meta ClientMeta) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -112,7 +98,6 @@ func (r *Registry) BindSession(port int, sess *yamux.Session, listener net.Liste
 	return nil
 }
 
-// PortNotReservedError indicates a port was not reserved
 type PortNotReservedError struct {
 	Port int
 }
@@ -122,8 +107,6 @@ func (e *PortNotReservedError) Error() string {
 }
 
 // GetSession retrieves the yamux session associated with a port.
-// Returns the session and true if found, nil and false otherwise.
-// Thread-safe for concurrent reads.
 func (r *Registry) GetSession(port int) (*yamux.Session, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -148,20 +131,16 @@ func (r *Registry) ReleasePorts(ports []int) {
 			continue
 		}
 
-		// Use stopOnce to ensure cleanup happens only once
 		slot.stopOnce.Do(func() {
-			// Close SOCKS listener if it exists
 			if slot.socksListener != nil {
-				slot.socksListener.Close()
+				_ = slot.socksListener.Close()
 			}
 
-			// Execute custom stop function if provided
 			if slot.stopFunc != nil {
 				slot.stopFunc()
 			}
 		})
 
-		// Remove from registry
 		delete(r.slots, port)
 	}
 }

@@ -1,0 +1,64 @@
+version: 2
+builds:
+  - id: rsk-server
+    main: ./cmd/rsk-server
+    binary: rsk-server
+    ldflags:
+      - -s -w
+      - -X github.com/tbxark/rsk/pkg/rsk/version.Version={{.Version}}
+      - -X github.com/tbxark/rsk/pkg/rsk/version.GitCommit={{.Commit}}
+      - -X github.com/tbxark/rsk/pkg/rsk/version.BuildDate={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+  
+  - id: rsk-client
+    main: ./cmd/rsk-client
+    binary: rsk-client
+    ldflags:
+      - -s -w
+      - -X github.com/tbxark/rsk/pkg/rsk/version.Version={{.Version}}
+      - -X github.com/tbxark/rsk/pkg/rsk/version.GitCommit={{.Commit}}
+      - -X github.com/tbxark/rsk/pkg/rsk/version.BuildDate={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+changelog:
+  disable: false
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^feat(\([\w-]+\))?!?:.*'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^fix(\([\w-]+\))?!?:.*'
+      order: 1
+    - title: "Refactor"
+      regexp: '^refactor(\([\w-]+\))?!?:.*'
+      order: 2
+    - title: "Build Process Updates"
+      regexp: '^(build|ci)(\([\w-]+\))?!?:.*'
+      order: 3
+    - title: "Documentation Updates"
+      regexp: '^docs(\([\w-]+\))?!?:.*'
+      order: 4
+    - title: "Maintenance"
+      regexp: '^chore(\([\w-]+\))?!?:.*'
+      order: 5
+    - title: Others
+      order: 999

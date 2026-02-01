@@ -13,7 +13,8 @@ import (
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 
-	"github.com/tbxark/rsk/internal/client"
+	"github.com/tbxark/rsk/pkg/rsk/client"
+	"github.com/tbxark/rsk/pkg/rsk/version"
 )
 
 func main() {
@@ -22,9 +23,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() {
+		_ = logger.Sync()
+	}()
 
-	// Parse CLI flags (Requirements: 13.5, 13.6, 13.7, 13.8, 13.9)
 	cfg, err := parseFlags()
 	if err != nil {
 		logger.Error("Failed to parse flags", zap.Error(err))
@@ -37,7 +39,6 @@ func main() {
 		zap.Ints("ports", cfg.ports),
 		zap.String("name", cfg.name))
 
-	// Create Client instance
 	c := &client.Client{
 		ServerAddr:     cfg.serverAddr,
 		Token:          []byte(cfg.token),
@@ -48,11 +49,9 @@ func main() {
 		Logger:         logger,
 	}
 
-	// Create context with signal handling
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle signals for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -61,7 +60,6 @@ func main() {
 		cancel()
 	}()
 
-	// Run client
 	if err := c.Run(ctx); err != nil && err != context.Canceled {
 		logger.Error("Client error", zap.Error(err))
 		os.Exit(1)
@@ -76,7 +74,6 @@ func initLogger() (*zap.Logger, error) {
 	return config.Build()
 }
 
-// clientConfig holds the parsed CLI configuration
 type clientConfig struct {
 	serverAddr  string
 	token       string
@@ -85,21 +82,23 @@ type clientConfig struct {
 	dialTimeout time.Duration
 }
 
-// parseFlags parses and validates CLI flags
-// Requirements: 13.5, 13.6, 13.7, 13.8, 13.9
 func parseFlags() (*clientConfig, error) {
 	cfg := &clientConfig{}
 
-	// Define flags
 	serverFlag := pflag.String("server", "", "Server address (required)")
 	tokenFlag := pflag.String("token", "", "Authentication token (required)")
 	portsFlag := pflag.String("ports", "", "Comma-separated list of ports to claim (required)")
 	nameFlag := pflag.String("name", "", "Client name for identification (optional, defaults to hostname)")
 	dialTimeoutFlag := pflag.Duration("dial-timeout", 15*time.Second, "Timeout for dialing target addresses")
+	showVersion := pflag.BoolP("version", "v", false, "Show version information")
 
 	pflag.Parse()
 
-	// Validate required parameters
+	if *showVersion {
+		fmt.Println(version.GetFullVersion())
+		os.Exit(0)
+	}
+
 	if *serverFlag == "" {
 		return nil, fmt.Errorf("--server is required")
 	}
@@ -114,7 +113,6 @@ func parseFlags() (*clientConfig, error) {
 		return nil, fmt.Errorf("--ports is required")
 	}
 
-	// Parse comma-separated ports
 	portStrs := strings.Split(*portsFlag, ",")
 	cfg.ports = make([]int, 0, len(portStrs))
 	for _, ps := range portStrs {
@@ -136,7 +134,6 @@ func parseFlags() (*clientConfig, error) {
 		return nil, fmt.Errorf("at least one port must be specified")
 	}
 
-	// Set name (default to hostname if not provided)
 	if *nameFlag == "" {
 		hostname, err := os.Hostname()
 		if err != nil {

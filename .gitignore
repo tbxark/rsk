@@ -1,1 +1,142 @@
-<!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}html{line-height:1.15;-webkit-text-size-adjust:100%;color:#313131;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji"}body{display:flex;flex-direction:column;height:100vh;min-height:100vh}.main-content{margin:8rem auto;padding-left:1.5rem;max-width:60rem}@media (width <= 720px){.main-content{margin-top:4rem}}.h2{line-height:2.25rem;font-size:1.5rem;font-weight:500}@media (width <= 720px){.h2{line-height:1.5rem;font-size:1.25rem}}#challenge-error-text{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0ibm9uZSI+PHBhdGggZmlsbD0iI0IyMEYwMyIgZD0iTTE2IDNhMTMgMTMgMCAxIDAgMTMgMTNBMTMuMDE1IDEzLjAxNSAwIDAgMCAxNiAzbTAgMjRhMTEgMTEgMCAxIDEgMTEtMTEgMTEuMDEgMTEuMDEgMCAwIDEtMTEgMTEiLz48cGF0aCBmaWxsPSIjQjIwRjAzIiBkPSJNMTcuMDM4IDE4LjYxNUgxNC44N0wxNC41NjMgOS41aDIuNzgzem0tMS4wODQgMS40MjdxLjY2IDAgMS4wNTcuMzg4LjQwNy4zODkuNDA3Ljk5NCAwIC41OTYtLjQwNy45ODQtLjM5Ny4zOS0xLjA1Ny4zODktLjY1IDAtMS4wNTYtLjM4OS0uMzk4LS4zODktLjM5OC0uOTg0IDAtLjU5Ny4zOTgtLjk4NS40MDYtLjM5NyAxLjA1Ni0uMzk3Ii8+PC9zdmc+");background-repeat:no-repeat;background-size:contain;padding-left:34px}@media (prefers-color-scheme: dark){body{background-color:#222;color:#d9d9d9}}</style><meta http-equiv="refresh" content="360"></head><body><div class="main-wrapper" role="main"><div class="main-content"><noscript><div class="h2"><span id="challenge-error-text">Enable JavaScript and cookies to continue</span></div></noscript></div></div><script>(function(){window._cf_chl_opt = {cvId: '3',cZone: 'www.toptal.com',cType: 'interactive',cRay: '9c6a85903aa4f37d',cH: 'M5GcSdpgR267llfPr_B9wiEIaeIm.HSNIJP7Tcm33Rc-1769876272-1.2.1.1-98OxEohBohL0gUPxLP.yqmeSJiTLylGGVy6gw7b0rFWmmOzkzHfRLv9rbycpxNEG',cUPMDTk:"\/developers\/gitignore\/api\/go,goland?__cf_chl_tk=AmUiOz_p6YPv7YrVubgN3wkwI1mqgOgXZY7kPNkbu_M-1769876272-1.0.1.1-CtUuemP3UFtW83X5ARAK0TdUwhyVzBeFWGtevnoswfI",cFPWv: 'b',cITimeS: '1769876272',cTplC:0,cTplV:5,cTplB: '0',fa:"\/developers\/gitignore\/api\/go,goland?__cf_chl_f_tk=AmUiOz_p6YPv7YrVubgN3wkwI1mqgOgXZY7kPNkbu_M-1769876272-1.0.1.1-CtUuemP3UFtW83X5ARAK0TdUwhyVzBeFWGtevnoswfI",md: 'D8OlRhEzRh0WrWB8LSmEcJY9HBl3B3reGnaIlnNPp3E-1769876272-1.2.1.1-LoobDRIrxrrit.SjYu.xb7R.roS1GZbjygC.58Nl7TiaxaE.I50r_b1X.2N02.FwnLdcs6LB5rxIJOpcotofgBz7.teK0_0HyhD55ybnHlknJzyxwHufwTnSvV6l7iNf86O_Vxlk9IEGrh7WpOKQr_YnynObPYUAl13D8J15ndTzAGx3EvMXNOd0Yu.VTxKMcbu0zpiW9wVL_q0M2D7MfEt6WKi2kE9TefSmH8ayV7lq5bESxvq02bzTPAW7LZvE6PpwYe924iwK7GL0ivnXSUjtOuthGQpdMJpc3m5NxUJ0Pjwpphp1.3QWDrv12OwEa9cOB2MCIq7mxXyagKyCaUO4VL6MjuZ_rSTb65062tRaGqCh9z0g4G1tvby8LtPBpEYplSaz0TsHIJEHcPY6DcWGoI2KY_qmaxKwvhgCn1hoR8KZAZkYct__devhVE3LRwg.nd1_0KqcblVk9RHM4tgajqGikvK.pUUWBQX.IXw55JVwzrYfWxA4wzt5_9d9QWAsccFfX5_k3tp7qNxFq1CnwBWGq2IuqzYepYoDBicG6_WGnkqOb7aovjoI3Cv18tvowBaPlg_ZTfdumDVRcbupuGWv5iNtch3n5r8AAkbQJEAvjaohjxiRHzAVYJjs89Lq5Wq25NWpzbpt36u53ABjCrruM6DYhY526ZnvLyrMpZUgj2C7_LY2EU72YHHcPFwXP1kMyBxJrlbLM86afrG9SvvLQBONMwhV0LZNZgPeRkINACZDLoiWJn7nHrY1ZlBsi3.DsRhPiLiuT2LACZpLxdeeiIp37z57uKn4LWZcwPH3lnBOne5PKs24Rj9Mpvo1QTvZg_Shy1emh6hpzgjQJcTUEK4B6I1_Hr30kRnMvewyG7oiYpAeitFbVLYfkMqfnfAJuuiXPSowKjee4fIWrfZvnMs6o9iDjG7I.k26DRfRb7jodeth8FTiQjokjZXBka9QACSROahjp10rQcjsuSjt4E6IXHrfSlHPiUA',mdrd: 'R5lkO0hiWHCtSz2qjIks5QJYCXaNh7cH8QGR.qoKDm0-1769876272-1.2.1.1-Q.i7lSn6nI1f8UU9jiaNIJyBGuk7pgRekrB4CVnZI.LdOca9vN.QGOVIFMRuRix2uXoCDvhqZKkYyc1ICfg324F5zzVlHHZCnxmuPlMknEjIhBqkFbnBPHcPDpAs28qzCHebt4R6Cer5jUqVimxXSSYvpVzqGh8mDJSTKpp.fZpijPvn4lCSJhe6zroZQgJbRmw7e5QH4WQO_oiM2W83vw5OcfLBT7ccS5OirZre.p.Jk5xnbSThy1_K0mBhshXYYXiIZUbZUusohWrD9vXnl7nRQW4tgWBtQZlX4DxDPbqoaRvwhd7_lx51djtk9JW8P83RUpiR4fTU5DsT8xCA9XlOLtWQgyIn9Gf7Oz61f9NbzGbWcQNF63lXz.m3n5sQu2v2X27zz21.AMmIuQkLUSTvfcv1d2ffPYS16XELnxsrrORKEba_ZB18E6Csr0V_V00weL03h3_1kHfR8gyItCFnQI8kdZF76jdzBnT88_JTrGtIPkEJKRd2rKtNJXdcOZ143QN_aYMnXN6vgKIS2V0rbSmdH__rBidgEzZMairL7S1_HlDFENhdJjPnekx.IlDVLwpD.TACsio3z5Au9tpZuIRiZYmyKUAe1TiHm5sX.vT_JiMZdr971Uu4y4IvgbU65Ah1AeNq2902aMOk2a22ezuQ71JWgVIWx0T_eC_kgBqn4f.MRRQC3_iQQeBZK0I69aVGP8pJvrkwxNL9bQ9m5gtpGTznWPtMLlbUTTRzx5lpbENv.fmd4OfcWfdYnKZC56VvgjlwwnXn2KnmQCfXH6zUmSakNexoC_DoLcSOcGf6eyEfJAMNmi2mkwWEKX285Vl4GmHhkotlG3T3.21HbQEPiy4Vv4Vg5ktY3aVZ3A5FzuxddC03dIMDtfmQa1zhmIkr4OTsVmRD_HOclFo5EBl5pjZo3JKQSggW0A_Xcfjcf.K9XghFymelIwcP_uNZbRwtI3BWOvx3HHPDLnfxtyGib8603qAPbGaUVHrSw_VxQXpmTC90M6OcFCNN05uY.bcvfyhvrIzOC9CS28BytMPaDumMEsW3MDulO5z7EHhufuDoMDZMRIJlrod3O_Q3sKQvffvcVwEa0FXC6WBD1GgIKBK3yP3IA8LmdzpVEDuhGHPZESn_bOuDSQmA6ZNLFAtLPwrkNT.wXoDCsQqiSFuOjUf3rfmBdG.apaQq0V3EU3R.VYQwgd4XeqbDwjK16Pqs8iRy7Nh8.3zP9w56eeA1Pf0_Fvbi8tWh3xuJa2YdGLsKIM3jTvj8mM4U3lw893ITLxRZ7bARMsmfHKO6ZkxaB.AlTq4MMjAQnxEtNgOSHVJkic0D8XOfWTswiYgQU9hVRtW5kJye3AgP4L07lua5ySAKKqlMLC.FO2n4VdboLysppUKz3YAZqdXVCuCnjIqr61y.Ym84Wrmu95t4d6PhswGH8GSwi8tWAePNwWBZyTpw4Vlf_2UxQ4FtrNvWTobFZ.UAs5l6H1iigiz780FmSQPYGaLXJWIvAvutznTfilsh6kshmuc_i74gJQZeMAWeU2NRRanKTsmHR7pzlPVTijk6JydRJ7f36m1bca9upPPJh65_TaPIer7XmGIFAwjBAv6AXownW4pz3oG2iS_Vi6wflN6w9.QYWW_BLa1BUy16ZugxohjV9B1qqRTUPfnkaSyGDwhEj.0lAV41zhVhJt2x_o.nuDRn5LHPXRatdVs8oZoZLmQjXgxuA78jwMNFwjI8e3g8HlBJBmSLmUEg3aVTSRfDYd7B2rCSjGtWtnVwLiJb8nxRgWfdHEwn9guFguZsUQWZzvEi632rbuVWE6VNAePNbtz7rlXSIciyIFM5xHNwhiNmYAf9VwcFis4jlY4WiYHL7Nym8BOxbnjRbXKmT6jbJubd8W0ve4ghUSJB6rsVDnWFxkQ8xIDJeRrd8Vyt.r_tAN6gONvoLefzuCZP3Ig4ohmuGKw_YzKGOnalNsklik6gkvOwmlyes6zude9fhbYD_yEoCx9_0GVbR75TfOEsE5pGuyO2qEJmwa7j8y_Kx02bEukW2c_BJml2YnbV8EAN35c92zF9sjfaTX19UFTYg0TknlZdVeBE.btuLdytAxBUu.2V2yBVqDqlzbEjkhiOrOFZDfA.c1BKCeun64Oe1t8prgqVNeEdrBSmZJlO3WwJyYOvwWzlzkkfkMEtx2o5Inpjwokrp.o8ReA8M8jjpm0MyeB4SUIIp5YYTJ5w3TGORfi9H8rzzyuY4wp6QSTApkeW2kI51XXkEjL.aimn4bz6vayM8zL09PprHJuva6cb1A3wGhpV2DcnBD.eZQWkpERNhWQrEdcjiP7SdDubMFdvt24',};var a = document.createElement('script');a.src = '/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1?ray=9c6a85903aa4f37d';window._cf_chl_opt.cOgUHash = location.hash === '' && location.href.indexOf('#') !== -1 ? '#' : location.hash;window._cf_chl_opt.cOgUQuery = location.search === '' && location.href.slice(0, location.href.length - window._cf_chl_opt.cOgUHash.length).indexOf('?') !== -1 ? '?' : location.search;if (window.history && window.history.replaceState) {var ogU = location.pathname + window._cf_chl_opt.cOgUQuery + window._cf_chl_opt.cOgUHash;history.replaceState(null, null,"\/developers\/gitignore\/api\/go,goland?__cf_chl_rt_tk=AmUiOz_p6YPv7YrVubgN3wkwI1mqgOgXZY7kPNkbu_M-1769876272-1.0.1.1-CtUuemP3UFtW83X5ARAK0TdUwhyVzBeFWGtevnoswfI"+ window._cf_chl_opt.cOgUHash);a.onload = function() {history.replaceState(null, null, ogU);}}document.getElementsByTagName('head')[0].appendChild(a);}());</script></body></html>
+# Created by https://www.toptal.com/developers/gitignore/api/go,goland
+# Edit at https://www.toptal.com/developers/gitignore?templates=go,goland
+
+### Go ###
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+### GoLand ###
+# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
+# Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
+
+# User-specific stuff
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+
+# AWS User-specific
+.idea/**/aws.xml
+
+# Generated files
+.idea/**/contentModel.xml
+
+# Sensitive or high-churn files
+.idea/**/dataSources/
+.idea/**/dataSources.ids
+.idea/**/dataSources.local.xml
+.idea/**/sqlDataSources.xml
+.idea/**/dynamic.xml
+.idea/**/uiDesigner.xml
+.idea/**/dbnavigator.xml
+
+# Gradle
+.idea/**/gradle.xml
+.idea/**/libraries
+
+# Gradle and Maven with auto-import
+# When using Gradle or Maven with auto-import, you should exclude module files,
+# since they will be recreated, and may cause churn.  Uncomment if using
+# auto-import.
+# .idea/artifacts
+# .idea/compiler.xml
+# .idea/jarRepositories.xml
+# .idea/modules.xml
+# .idea/*.iml
+# .idea/modules
+# *.iml
+# *.ipr
+
+# CMake
+cmake-build-*/
+
+# Mongo Explorer plugin
+.idea/**/mongoSettings.xml
+
+# File-based project format
+*.iws
+
+# IntelliJ
+out/
+
+# mpeltonen/sbt-idea plugin
+.idea_modules/
+
+# JIRA plugin
+atlassian-ide-plugin.xml
+
+# Cursive Clojure plugin
+.idea/replstate.xml
+
+# SonarLint plugin
+.idea/sonarlint/
+
+# Crashlytics plugin (for Android Studio and IntelliJ)
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# Editor-based Rest Client
+.idea/httpRequests
+
+# Android studio 3.1+ serialized cache file
+.idea/caches/build_file_checksums.ser
+
+### GoLand Patch ###
+# Comment Reason: https://github.com/joeblau/gitignore.io/issues/186#issuecomment-215987721
+
+# *.iml
+# modules.xml
+# .idea/misc.xml
+# *.ipr
+
+# Sonarlint plugin
+# https://plugins.jetbrains.com/plugin/7973-sonarlint
+.idea/**/sonarlint/
+
+# SonarQube Plugin
+# https://plugins.jetbrains.com/plugin/7238-sonarqube-community-plugin
+.idea/**/sonarIssues.xml
+
+# Markdown Navigator plugin
+# https://plugins.jetbrains.com/plugin/7896-markdown-navigator-enhanced
+.idea/**/markdown-navigator.xml
+.idea/**/markdown-navigator-enh.xml
+.idea/**/markdown-navigator/
+
+# Cache file creation bug
+# See https://youtrack.jetbrains.com/issue/JBR-2257
+.idea/$CACHE_FILE$
+
+# CodeStream plugin
+# https://plugins.jetbrains.com/plugin/12206-codestream
+.idea/codestream.xml
+
+# Azure Toolkit for IntelliJ plugin
+# https://plugins.jetbrains.com/plugin/8053-azure-toolkit-for-intellij
+.idea/**/azureSettings.xml
+
+# End of https://www.toptal.com/developers/gitignore/api/go,goland
+
+dist/

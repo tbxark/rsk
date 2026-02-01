@@ -66,12 +66,12 @@ The RSK server accepts client connections and exposes SOCKS5 ports on localhost.
 
 #### Command-Line Options
 
-| Flag | Description | Default | Required |
-|------|-------------|---------|----------|
-| `--listen` | Address to listen for client connections | `:7000` | No |
-| `--token` | Authentication token | - | **Yes** |
-| `--bind` | IP address to bind SOCKS5 listeners | `127.0.0.1` | No |
-| `--port-range` | Allowed port range for SOCKS5 (format: min-max) | `20000-40000` | No |
+| Flag           | Description                                     | Default       | Required |
+|----------------|-------------------------------------------------|---------------|----------|
+| `--listen`     | Address to listen for client connections        | `:7000`       | No       |
+| `--token`      | Authentication token                            | -             | **Yes**  |
+| `--bind`       | IP address to bind SOCKS5 listeners             | `127.0.0.1`   | No       |
+| `--port-range` | Allowed port range for SOCKS5 (format: min-max) | `20000-40000` | No       |
 
 #### Example
 
@@ -99,13 +99,13 @@ The RSK client connects to the server and handles outbound connections as an exi
 
 #### Command-Line Options
 
-| Flag | Description | Default | Required |
-|------|-------------|---------|----------|
-| `--server` | Server address (host:port) | - | **Yes** |
-| `--token` | Authentication token | - | **Yes** |
-| `--ports` | Comma-separated list of ports to claim | - | **Yes** |
-| `--name` | Client name for identification | hostname | No |
-| `--dial-timeout` | Timeout for dialing target addresses | `15s` | No |
+| Flag             | Description                            | Default  | Required |
+|------------------|----------------------------------------|----------|----------|
+| `--server`       | Server address (host:port)             | -        | **Yes**  |
+| `--token`        | Authentication token                   | -        | **Yes**  |
+| `--ports`        | Comma-separated list of ports to claim | -        | **Yes**  |
+| `--name`         | Client name for identification         | hostname | No       |
+| `--dial-timeout` | Timeout for dialing target addresses   | `15s`    | No       |
 
 #### Example
 
@@ -180,50 +180,6 @@ One client can claim multiple ports for load balancing:
 ```
 
 Applications can then distribute connections across these ports.
-
-## Testing
-
-### Running Tests
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with race detector
-go test -race ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run specific package tests
-go test ./internal/proto
-go test ./internal/server
-go test ./internal/client
-```
-
-### Manual Testing
-
-**1. Start the server:**
-```bash
-./rsk-server --token test-token
-```
-
-**2. Start a client:**
-```bash
-./rsk-client --server localhost:7000 --token test-token --ports 20001
-```
-
-**3. Test SOCKS5 connectivity:**
-```bash
-# Check your exit IP
-curl --socks5 127.0.0.1:20001 https://ifconfig.me
-
-# Test HTTPS connection
-curl --socks5 127.0.0.1:20001 https://example.com
-
-# Test with other SOCKS5-compatible tools
-ssh -o ProxyCommand='nc -X 5 -x 127.0.0.1:20001 %h %p' user@remote-host
-```
 
 ## Security Recommendations
 
