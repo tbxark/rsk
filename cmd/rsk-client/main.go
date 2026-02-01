@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -17,10 +16,18 @@ import (
 	"github.com/tbxark/rsk/pkg/rsk/version"
 )
 
+type Config struct {
+	serverAddr  string
+	token       string
+	port        int
+	name        string
+	dialTimeout time.Duration
+}
+
 func main() {
 	logger, err := initLogger()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() {
@@ -29,20 +36,18 @@ func main() {
 
 	cfg, err := parseFlags()
 	if err != nil {
-		logger.Error("Failed to parse flags", zap.Error(err))
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		logger.Fatal("Failed to parse flags", zap.Error(err))
 	}
 
 	logger.Info("RSK Client starting",
 		zap.String("server", cfg.serverAddr),
-		zap.Ints("ports", cfg.ports),
+		zap.Int("port", cfg.port),
 		zap.String("name", cfg.name))
 
 	c := &client.Client{
 		ServerAddr:     cfg.serverAddr,
 		Token:          []byte(cfg.token),
-		Ports:          cfg.ports,
+		Ports:          []int{cfg.port},
 		Name:           cfg.name,
 		DialTimeout:    cfg.dialTimeout,
 		ReconnectDelay: 2 * time.Second,
@@ -60,7 +65,7 @@ func main() {
 		cancel()
 	}()
 
-	if err := c.Run(ctx); err != nil && err != context.Canceled {
+	if err := c.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("Client error", zap.Error(err))
 		os.Exit(1)
 	}
@@ -68,28 +73,14 @@ func main() {
 	logger.Info("RSK Client stopped")
 }
 
-func initLogger() (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	return config.Build()
-}
+func parseFlags() (*Config, error) {
+	conf := &Config{}
 
-type clientConfig struct {
-	serverAddr  string
-	token       string
-	ports       []int
-	name        string
-	dialTimeout time.Duration
-}
-
-func parseFlags() (*clientConfig, error) {
-	cfg := &clientConfig{}
-
-	serverFlag := pflag.String("server", "", "Server address (required)")
-	tokenFlag := pflag.String("token", "", "Authentication token (required)")
-	portsFlag := pflag.String("ports", "", "Comma-separated list of ports to claim (required)")
-	nameFlag := pflag.String("name", "", "Client name for identification (optional, defaults to hostname)")
-	dialTimeoutFlag := pflag.Duration("dial-timeout", 15*time.Second, "Timeout for dialing target addresses")
+	pflag.StringVar(&conf.serverAddr, "server", "", "Server address (required)")
+	pflag.StringVar(&conf.token, "token", "", "Authentication token (required)")
+	pflag.IntVar(&conf.port, "port", 0, "Port to claim on the server (required)")
+	pflag.StringVar(&conf.name, "name", "", "Client name for identification (optional, defaults to hostname)")
+	pflag.DurationVar(&conf.dialTimeout, "dial-timeout", 15*time.Second, "Timeout for dialing target addresses")
 	showVersion := pflag.BoolP("version", "v", false, "Show version information")
 
 	pflag.Parse()
@@ -99,53 +90,36 @@ func parseFlags() (*clientConfig, error) {
 		os.Exit(0)
 	}
 
-	if *serverFlag == "" {
+	if conf.serverAddr == "" {
 		return nil, fmt.Errorf("--server is required")
 	}
-	cfg.serverAddr = *serverFlag
 
-	if *tokenFlag == "" {
+	if conf.token == "" {
 		return nil, fmt.Errorf("--token is required")
 	}
-	cfg.token = *tokenFlag
 
-	if *portsFlag == "" {
-		return nil, fmt.Errorf("--ports is required")
+	if conf.port == 0 {
+		return nil, fmt.Errorf("--port is required")
 	}
 
-	portStrs := strings.Split(*portsFlag, ",")
-	cfg.ports = make([]int, 0, len(portStrs))
-	for _, ps := range portStrs {
-		ps = strings.TrimSpace(ps)
-		if ps == "" {
-			continue
-		}
-		port, err := strconv.Atoi(ps)
-		if err != nil {
-			return nil, fmt.Errorf("invalid port '%s': %w", ps, err)
-		}
-		if port < 1 || port > 65535 {
-			return nil, fmt.Errorf("port %d out of range (1-65535)", port)
-		}
-		cfg.ports = append(cfg.ports, port)
+	if conf.port < 1 || conf.port > 65535 {
+		return nil, fmt.Errorf("port must be between 1 and 65535")
 	}
 
-	if len(cfg.ports) == 0 {
-		return nil, fmt.Errorf("at least one port must be specified")
-	}
-
-	if *nameFlag == "" {
+	if conf.name == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			cfg.name = "unknown"
+			conf.name = "unknown"
 		} else {
-			cfg.name = hostname
+			conf.name = hostname
 		}
-	} else {
-		cfg.name = *nameFlag
 	}
 
-	cfg.dialTimeout = *dialTimeoutFlag
+	return conf, nil
+}
 
-	return cfg, nil
+func initLogger() (*zap.Logger, error) {
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	return config.Build()
 }

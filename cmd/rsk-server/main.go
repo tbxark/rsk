@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -23,59 +24,10 @@ type Config struct {
 	portMax    int
 }
 
-func parseFlags() (*Config, error) {
-	cfg := &Config{}
-
-	pflag.StringVar(&cfg.listenAddr, "listen", ":7000", "Address to listen for client connections")
-	pflag.StringVar(&cfg.token, "token", "", "Authentication token (required)")
-	pflag.StringVar(&cfg.bindIP, "bind", "127.0.0.1", "IP address to bind SOCKS5 listeners")
-	portRange := pflag.String("port-range", "20000-40000", "Allowed port range for SOCKS5 listeners (format: min-max)")
-	showVersion := pflag.BoolP("version", "v", false, "Show version information")
-
-	pflag.Parse()
-
-	if *showVersion {
-		fmt.Println(version.GetFullVersion())
-		os.Exit(0)
-	}
-
-	if cfg.token == "" {
-		return nil, fmt.Errorf("--token is required")
-	}
-
-	parts := strings.Split(*portRange, "-")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid port-range format, expected min-max")
-	}
-
-	var err error
-	cfg.portMin, err = strconv.Atoi(strings.TrimSpace(parts[0]))
-	if err != nil {
-		return nil, fmt.Errorf("invalid port-range minimum: %w", err)
-	}
-
-	cfg.portMax, err = strconv.Atoi(strings.TrimSpace(parts[1]))
-	if err != nil {
-		return nil, fmt.Errorf("invalid port-range maximum: %w", err)
-	}
-
-	if cfg.portMin < 1 || cfg.portMin > 65535 {
-		return nil, fmt.Errorf("port-range minimum must be between 1 and 65535")
-	}
-	if cfg.portMax < 1 || cfg.portMax > 65535 {
-		return nil, fmt.Errorf("port-range maximum must be between 1 and 65535")
-	}
-	if cfg.portMin > cfg.portMax {
-		return nil, fmt.Errorf("port-range minimum must be less than or equal to maximum")
-	}
-
-	return cfg, nil
-}
-
 func main() {
 	logger, err := initLogger()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() {
@@ -112,7 +64,7 @@ func main() {
 
 	errChan := make(chan error, 1)
 	go func() {
-		if err := srv.Start(ctx); err != nil && err != context.Canceled {
+		if err := srv.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			errChan <- err
 		}
 	}()
@@ -126,6 +78,55 @@ func main() {
 	}
 
 	logger.Info("RSK Server stopped")
+}
+
+func parseFlags() (*Config, error) {
+	conf := &Config{}
+
+	pflag.StringVar(&conf.listenAddr, "listen", ":7000", "Address to listen for client connections")
+	pflag.StringVar(&conf.token, "token", "", "Authentication token (required)")
+	pflag.StringVar(&conf.bindIP, "bind", "127.0.0.1", "IP address to bind SOCKS5 listeners")
+	portRange := pflag.String("port-range", "20000-40000", "Allowed port range for SOCKS5 listeners (format: min-max)")
+	showVersion := pflag.BoolP("version", "v", false, "Show version information")
+
+	pflag.Parse()
+
+	if *showVersion {
+		fmt.Println(version.GetFullVersion())
+		os.Exit(0)
+	}
+
+	if conf.token == "" {
+		return nil, fmt.Errorf("--token is required")
+	}
+
+	parts := strings.Split(*portRange, "-")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid port-range format, expected min-max")
+	}
+
+	var err error
+	conf.portMin, err = strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid port-range minimum: %w", err)
+	}
+
+	conf.portMax, err = strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid port-range maximum: %w", err)
+	}
+
+	if conf.portMin < 1 || conf.portMin > 65535 {
+		return nil, fmt.Errorf("port-range minimum must be between 1 and 65535")
+	}
+	if conf.portMax < 1 || conf.portMax > 65535 {
+		return nil, fmt.Errorf("port-range maximum must be between 1 and 65535")
+	}
+	if conf.portMin > conf.portMax {
+		return nil, fmt.Errorf("port-range minimum must be less than or equal to maximum")
+	}
+
+	return conf, nil
 }
 
 func initLogger() (*zap.Logger, error) {
