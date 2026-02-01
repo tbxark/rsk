@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/tbxark/rsk/pkg/rsk/common"
@@ -16,14 +15,6 @@ import (
 	"github.com/tbxark/rsk/pkg/rsk/version"
 	"go.uber.org/zap"
 )
-
-type Config struct {
-	listenAddr string
-	token      string
-	bindIP     string
-	portMin    int
-	portMax    int
-}
 
 func main() {
 	logger, err := initLogger()
@@ -39,29 +30,25 @@ func main() {
 
 	cfg, err := parseFlags()
 	if err != nil {
-		logger.Fatal("Failed to parse flags", zap.Error(err))
+		logger.Fatal("Failed to parse configuration", zap.Error(err))
 	}
 
-	// Validate token strength
-	if err := common.ValidateToken([]byte(cfg.token)); err != nil {
-		logger.Fatal("Token validation failed", zap.Error(err))
+	if err := cfg.Validate(); err != nil {
+		logger.Fatal("Configuration validation failed", zap.Error(err))
 	}
 
 	logger.Info("Configuration loaded",
-		zap.String("listen", cfg.listenAddr),
-		zap.String("bind", cfg.bindIP),
-		zap.Int("port_min", cfg.portMin),
-		zap.Int("port_max", cfg.portMax),
+		zap.String("listen", cfg.ListenAddr),
+		zap.String("bind", cfg.BindIP),
+		zap.Int("port_min", cfg.PortMin),
+		zap.Int("port_max", cfg.PortMax),
+		zap.Int("max_clients", cfg.MaxClients),
+		zap.Int("max_auth_failures", cfg.MaxAuthFailures),
+		zap.Duration("auth_block_duration", cfg.AuthBlockDuration),
+		zap.Int("max_connections_per_client", cfg.MaxConnsPerClient),
 		zap.Bool("token_validated", true))
 
-	srv := server.NewServer(
-		cfg.listenAddr,
-		cfg.bindIP,
-		[]byte(cfg.token),
-		cfg.portMin,
-		cfg.portMax,
-		logger,
-	)
+	srv := server.NewServer(cfg, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -87,61 +74,65 @@ func main() {
 	logger.Info("RSK Server stopped")
 }
 
-func parseFlags() (*Config, error) {
-	conf := &Config{}
+func parseFlags() (*server.Config, error) {
+	var (
+		listenAddr        string
+		token             string
+		bindIP            string
+		portRange         string
+		maxClients        int
+		maxAuthFailures   int
+		authBlockDuration time.Duration
+		maxConnsPerClient int
+		showVersion       bool
+	)
 
-	pflag.StringVar(&conf.listenAddr, "listen", ":7000", "Address to listen for client connections")
-	pflag.StringVar(&conf.token, "token", "", "Authentication token (required)")
-	pflag.StringVar(&conf.bindIP, "bind", "127.0.0.1", "IP address to bind SOCKS5 listeners")
-	portRange := pflag.String("port-range", "20000-40000", "Allowed port range for SOCKS5 listeners (format: min-max)")
-	showVersion := pflag.BoolP("version", "v", false, "Show version information")
+	pflag.StringVar(&listenAddr, "listen", ":7000", "Address to listen for client connections")
+	pflag.StringVar(&token, "token", "", "Authentication token (required)")
+	pflag.StringVar(&bindIP, "bind", "127.0.0.1", "IP address to bind SOCKS5 listeners")
+	pflag.StringVar(&portRange, "port-range", "20000-40000", "Allowed port range for SOCKS5 listeners (format: min-max)")
+	pflag.IntVar(&maxClients, "max-clients", 100, "Maximum number of concurrent client connections")
+	pflag.IntVar(&maxAuthFailures, "max-auth-failures", 5, "Maximum authentication failures before blocking IP")
+	pflag.DurationVar(&authBlockDuration, "auth-block-duration", 5*time.Minute, "Duration to block IP after max auth failures")
+	pflag.IntVar(&maxConnsPerClient, "max-connections-per-client", 100, "Maximum SOCKS5 connections per client")
+	pflag.BoolVarP(&showVersion, "version", "v", false, "Show version information")
 
 	pflag.Parse()
 
-	if *showVersion {
+	if showVersion {
 		fmt.Println(version.GetFullVersion())
 		os.Exit(0)
 	}
 
-	if conf.token == "" {
-		// Auto-generate a secure token
+	// Auto-generate token if not provided
+	if token == "" {
 		generatedToken, err := common.GenerateToken(common.MinTokenLength)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate token: %w", err)
 		}
-		conf.token = generatedToken
+		token = generatedToken
 		fmt.Printf("\n⚠️  No token provided. Auto-generated secure token:\n")
 		fmt.Printf("   %s\n", generatedToken)
 		fmt.Printf("\n💡 Save this token! Use it with: --token=\"%s\"\n\n", generatedToken)
 	}
 
-	parts := strings.Split(*portRange, "-")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid port-range format, expected min-max")
-	}
-
-	var err error
-	conf.portMin, err = strconv.Atoi(strings.TrimSpace(parts[0]))
+	// Parse port range
+	portMin, portMax, err := server.ParsePortRange(portRange)
 	if err != nil {
-		return nil, fmt.Errorf("invalid port-range minimum: %w", err)
+		return nil, err
 	}
 
-	conf.portMax, err = strconv.Atoi(strings.TrimSpace(parts[1]))
-	if err != nil {
-		return nil, fmt.Errorf("invalid port-range maximum: %w", err)
-	}
-
-	if conf.portMin < 1 || conf.portMin > 65535 {
-		return nil, fmt.Errorf("port-range minimum must be between 1 and 65535")
-	}
-	if conf.portMax < 1 || conf.portMax > 65535 {
-		return nil, fmt.Errorf("port-range maximum must be between 1 and 65535")
-	}
-	if conf.portMin > conf.portMax {
-		return nil, fmt.Errorf("port-range minimum must be less than or equal to maximum")
-	}
-
-	return conf, nil
+	return &server.Config{
+		ListenAddr:        listenAddr,
+		Token:             []byte(token),
+		BindIP:            bindIP,
+		PortMin:           portMin,
+		PortMax:           portMax,
+		MaxClients:        maxClients,
+		MaxAuthFailures:   maxAuthFailures,
+		AuthBlockDuration: authBlockDuration,
+		MaxConnsPerClient: maxConnsPerClient,
+	}, nil
 }
 
 func initLogger() (*zap.Logger, error) {

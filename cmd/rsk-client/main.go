@@ -16,14 +16,6 @@ import (
 	"github.com/tbxark/rsk/pkg/rsk/version"
 )
 
-type Config struct {
-	serverAddr  string
-	token       string
-	port        int
-	name        string
-	dialTimeout time.Duration
-}
-
 func main() {
 	logger, err := initLogger()
 	if err != nil {
@@ -36,20 +28,23 @@ func main() {
 
 	cfg, err := parseFlags()
 	if err != nil {
-		logger.Fatal("Failed to parse flags", zap.Error(err))
+		logger.Fatal("Failed to parse configuration", zap.Error(err))
+	}
+
+	if err := cfg.Validate(); err != nil {
+		logger.Fatal("Configuration validation failed", zap.Error(err))
 	}
 
 	logger.Info("RSK Client starting",
-		zap.String("server", cfg.serverAddr),
-		zap.Int("port", cfg.port),
-		zap.String("name", cfg.name))
+		zap.String("server", cfg.ServerAddr),
+		zap.Int("port", cfg.Port),
+		zap.String("name", cfg.Name),
+		zap.Bool("token_validated", true),
+		zap.Bool("allow_private_networks", cfg.AllowPrivateNetworks),
+		zap.Strings("blocked_networks", cfg.BlockedNetworks))
 
 	c := &client.Client{
-		ServerAddr:     cfg.serverAddr,
-		Token:          []byte(cfg.token),
-		Ports:          []int{cfg.port},
-		Name:           cfg.name,
-		DialTimeout:    cfg.dialTimeout,
+		Config:         cfg,
 		ReconnectDelay: 2 * time.Second,
 		Logger:         logger,
 	}
@@ -73,49 +68,70 @@ func main() {
 	logger.Info("RSK Client stopped")
 }
 
-func parseFlags() (*Config, error) {
-	conf := &Config{}
+func parseFlags() (*client.Config, error) {
+	var (
+		serverAddr           string
+		token                string
+		port                 int
+		name                 string
+		dialTimeout          time.Duration
+		allowPrivateNetworks bool
+		blockedNetworksStr   string
+		showVersion          bool
+	)
 
-	pflag.StringVar(&conf.serverAddr, "server", "", "Server address (required)")
-	pflag.StringVar(&conf.token, "token", "", "Authentication token (required)")
-	pflag.IntVar(&conf.port, "port", 0, "Port to claim on the server (required)")
-	pflag.StringVar(&conf.name, "name", "", "Client name for identification (optional, defaults to hostname)")
-	pflag.DurationVar(&conf.dialTimeout, "dial-timeout", 15*time.Second, "Timeout for dialing target addresses")
-	showVersion := pflag.BoolP("version", "v", false, "Show version information")
+	pflag.StringVar(&serverAddr, "server", "", "Server address (required)")
+	pflag.StringVar(&token, "token", "", "Authentication token (required)")
+	pflag.IntVar(&port, "port", 0, "Port to claim on the server (required)")
+	pflag.StringVar(&name, "name", "", "Client name for identification (optional, defaults to hostname)")
+	pflag.DurationVar(&dialTimeout, "dial-timeout", 15*time.Second, "Timeout for dialing target addresses")
+	pflag.BoolVar(&allowPrivateNetworks, "allow-private-networks", false, "Allow connections to private IP ranges")
+	pflag.StringVar(&blockedNetworksStr, "blocked-networks", "", "Additional CIDR blocks to block (comma-separated)")
+	pflag.BoolVarP(&showVersion, "version", "v", false, "Show version information")
 
 	pflag.Parse()
 
-	if *showVersion {
+	if showVersion {
 		fmt.Println(version.GetFullVersion())
 		os.Exit(0)
 	}
 
-	if conf.serverAddr == "" {
+	// Validate required fields
+	if serverAddr == "" {
 		return nil, fmt.Errorf("--server is required")
 	}
-
-	if conf.token == "" {
+	if token == "" {
 		return nil, fmt.Errorf("--token is required")
 	}
-
-	if conf.port == 0 {
+	if port == 0 {
 		return nil, fmt.Errorf("--port is required")
 	}
 
-	if conf.port < 1 || conf.port > 65535 {
-		return nil, fmt.Errorf("port must be between 1 and 65535")
-	}
-
-	if conf.name == "" {
+	// Default name to hostname
+	if name == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			conf.name = "unknown"
+			name = "unknown"
 		} else {
-			conf.name = hostname
+			name = hostname
 		}
 	}
 
-	return conf, nil
+	// Parse blocked networks
+	var blockedNetworks []string
+	if blockedNetworksStr != "" {
+		blockedNetworks = client.ParseCommaSeparated(blockedNetworksStr)
+	}
+
+	return &client.Config{
+		ServerAddr:           serverAddr,
+		Token:                []byte(token),
+		Port:                 port,
+		Name:                 name,
+		DialTimeout:          dialTimeout,
+		AllowPrivateNetworks: allowPrivateNetworks,
+		BlockedNetworks:      blockedNetworks,
+	}, nil
 }
 
 func initLogger() (*zap.Logger, error) {

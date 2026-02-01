@@ -15,7 +15,11 @@ ExecStart=/opt/rsk/rsk-server \
   --listen :7000 \
   --token ${RSK_TOKEN} \
   --bind 127.0.0.1 \
-  --port-range 20000-40000
+  --port-range 20000-40000 \
+  --max-clients 100 \
+  --max-auth-failures 5 \
+  --auth-block-duration 5m \
+  --max-connections-per-client 100
 
 # Security hardening
 NoNewPrivileges=true

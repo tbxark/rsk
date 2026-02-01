@@ -21,7 +21,8 @@ ExecStart=/opt/rsk/rsk-client \
   --token ${RSK_TOKEN} \
   --ports ${RSK_PORTS} \
   --name ${RSK_NAME} \
-  --dial-timeout 15s
+  --dial-timeout 15s \
+  --allow-private-networks
 
 # Security hardening
 NoNewPrivileges=true

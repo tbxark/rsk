@@ -3,6 +3,7 @@ package server
 import (
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/hashicorp/yamux"
 )
@@ -14,6 +15,9 @@ type ClientSlot struct {
 
 	session       *yamux.Session // Yamux session
 	socksListener net.Listener   // SOCKS5 listener
+
+	activeConns int32 // Active SOCKS5 connections (atomic)
+	maxConns    int32 // Maximum allowed connections
 
 	stopOnce sync.Once // Ensures cleanup happens once
 	stopFunc func()    // Custom cleanup function
@@ -80,7 +84,7 @@ type ClientMeta struct {
 }
 
 // BindSession associates a yamux session and SOCKS listener with a reserved port.
-func (r *Registry) BindSession(port int, sess *yamux.Session, listener net.Listener, meta ClientMeta) error {
+func (r *Registry) BindSession(port int, sess *yamux.Session, listener net.Listener, meta ClientMeta, maxConns int32) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -94,6 +98,8 @@ func (r *Registry) BindSession(port int, sess *yamux.Session, listener net.Liste
 	slot.socksListener = listener
 	slot.clientName = meta.ClientName
 	slot.clientID = meta.ClientID
+	slot.maxConns = maxConns
+	slot.activeConns = 0
 
 	return nil
 }
@@ -143,4 +149,53 @@ func (r *Registry) ReleasePorts(ports []int) {
 
 		delete(r.slots, port)
 	}
+}
+
+// IncrementConnections atomically increments the connection count for a port.
+// Returns true if the increment was successful, false if the limit was reached.
+func (r *Registry) IncrementConnections(port int) bool {
+	r.mu.RLock()
+	slot, exists := r.slots[port]
+	r.mu.RUnlock()
+
+	if !exists {
+		return false
+	}
+
+	// Atomically check and increment
+	for {
+		current := atomic.LoadInt32(&slot.activeConns)
+		if current >= slot.maxConns {
+			return false
+		}
+		if atomic.CompareAndSwapInt32(&slot.activeConns, current, current+1) {
+			return true
+		}
+	}
+}
+
+// DecrementConnections atomically decrements the connection count for a port.
+func (r *Registry) DecrementConnections(port int) {
+	r.mu.RLock()
+	slot, exists := r.slots[port]
+	r.mu.RUnlock()
+
+	if !exists {
+		return
+	}
+
+	atomic.AddInt32(&slot.activeConns, -1)
+}
+
+// GetConnectionCount returns the current connection count for a port.
+func (r *Registry) GetConnectionCount(port int) int {
+	r.mu.RLock()
+	slot, exists := r.slots[port]
+	r.mu.RUnlock()
+
+	if !exists {
+		return 0
+	}
+
+	return int(atomic.LoadInt32(&slot.activeConns))
 }

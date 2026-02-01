@@ -96,7 +96,7 @@ func TestBindSession(t *testing.T) {
 	}
 
 	// Bind session
-	err = r.BindSession(port, mockSession, mockListener, meta)
+	err = r.BindSession(port, mockSession, mockListener, meta, 100)
 	require.NoError(t, err)
 
 	// Verify binding
@@ -105,6 +105,8 @@ func TestBindSession(t *testing.T) {
 	assert.Equal(t, mockListener, slot.socksListener)
 	assert.Equal(t, "test-client", slot.clientName)
 	assert.Equal(t, "test-id-123", slot.clientID)
+	assert.Equal(t, int32(100), slot.maxConns)
+	assert.Equal(t, int32(0), slot.activeConns)
 }
 
 func TestBindSession_PortNotReserved(t *testing.T) {
@@ -116,7 +118,7 @@ func TestBindSession_PortNotReserved(t *testing.T) {
 	meta := ClientMeta{ClientName: "test"}
 
 	// Try to bind without reserving
-	err := r.BindSession(port, mockSession, mockListener, meta)
+	err := r.BindSession(port, mockSession, mockListener, meta, 100)
 	assert.Error(t, err)
 	assert.IsType(t, &PortNotReservedError{}, err)
 }
@@ -134,7 +136,7 @@ func TestGetSession(t *testing.T) {
 	mockListener := &mockNetListener{}
 	meta := ClientMeta{ClientName: "test"}
 
-	err = r.BindSession(port, mockSession, mockListener, meta)
+	err = r.BindSession(port, mockSession, mockListener, meta, 100)
 	require.NoError(t, err)
 
 	// Get session
@@ -179,7 +181,7 @@ func TestReleasePorts(t *testing.T) {
 	meta := ClientMeta{ClientName: "test"}
 
 	for _, port := range ports {
-		err = r.BindSession(port, mockSession, mockListener, meta)
+		err = r.BindSession(port, mockSession, mockListener, meta, 100)
 		require.NoError(t, err)
 	}
 
@@ -208,7 +210,7 @@ func TestReleasePorts_Idempotent(t *testing.T) {
 	mockSession := &yamux.Session{}
 	meta := ClientMeta{ClientName: "test"}
 
-	err = r.BindSession(ports[0], mockSession, mockListener, meta)
+	err = r.BindSession(ports[0], mockSession, mockListener, meta, 100)
 	require.NoError(t, err)
 
 	// Call ReleasePorts multiple times
@@ -247,4 +249,200 @@ func (m *mockNetListener) Close() error {
 
 func (m *mockNetListener) Addr() net.Addr {
 	return nil
+}
+
+func TestIncrementConnections_Success(t *testing.T) {
+	r := NewRegistry()
+	port := 20001
+
+	// Reserve and bind with maxConns=3
+	release, err := r.ReservePorts([]int{port})
+	require.NoError(t, err)
+	defer release()
+
+	mockSession := &yamux.Session{}
+	mockListener := &mockNetListener{}
+	meta := ClientMeta{ClientName: "test"}
+
+	err = r.BindSession(port, mockSession, mockListener, meta, 3)
+	require.NoError(t, err)
+
+	// Increment connections
+	assert.True(t, r.IncrementConnections(port))
+	assert.Equal(t, 1, r.GetConnectionCount(port))
+
+	assert.True(t, r.IncrementConnections(port))
+	assert.Equal(t, 2, r.GetConnectionCount(port))
+
+	assert.True(t, r.IncrementConnections(port))
+	assert.Equal(t, 3, r.GetConnectionCount(port))
+}
+
+func TestIncrementConnections_LimitReached(t *testing.T) {
+	r := NewRegistry()
+	port := 20001
+
+	// Reserve and bind with maxConns=2
+	release, err := r.ReservePorts([]int{port})
+	require.NoError(t, err)
+	defer release()
+
+	mockSession := &yamux.Session{}
+	mockListener := &mockNetListener{}
+	meta := ClientMeta{ClientName: "test"}
+
+	err = r.BindSession(port, mockSession, mockListener, meta, 2)
+	require.NoError(t, err)
+
+	// Increment to limit
+	assert.True(t, r.IncrementConnections(port))
+	assert.True(t, r.IncrementConnections(port))
+
+	// Try to exceed limit
+	assert.False(t, r.IncrementConnections(port))
+	assert.Equal(t, 2, r.GetConnectionCount(port))
+}
+
+func TestIncrementConnections_PortNotFound(t *testing.T) {
+	r := NewRegistry()
+
+	// Try to increment on non-existent port
+	assert.False(t, r.IncrementConnections(20001))
+}
+
+func TestDecrementConnections(t *testing.T) {
+	r := NewRegistry()
+	port := 20001
+
+	// Reserve and bind
+	release, err := r.ReservePorts([]int{port})
+	require.NoError(t, err)
+	defer release()
+
+	mockSession := &yamux.Session{}
+	mockListener := &mockNetListener{}
+	meta := ClientMeta{ClientName: "test"}
+
+	err = r.BindSession(port, mockSession, mockListener, meta, 10)
+	require.NoError(t, err)
+
+	// Increment then decrement
+	r.IncrementConnections(port)
+	r.IncrementConnections(port)
+	r.IncrementConnections(port)
+	assert.Equal(t, 3, r.GetConnectionCount(port))
+
+	r.DecrementConnections(port)
+	assert.Equal(t, 2, r.GetConnectionCount(port))
+
+	r.DecrementConnections(port)
+	assert.Equal(t, 1, r.GetConnectionCount(port))
+
+	r.DecrementConnections(port)
+	assert.Equal(t, 0, r.GetConnectionCount(port))
+}
+
+func TestDecrementConnections_PortNotFound(t *testing.T) {
+	r := NewRegistry()
+
+	// Should not panic when decrementing non-existent port
+	r.DecrementConnections(20001)
+}
+
+func TestGetConnectionCount_PortNotFound(t *testing.T) {
+	r := NewRegistry()
+
+	count := r.GetConnectionCount(20001)
+	assert.Equal(t, 0, count)
+}
+
+func TestConnectionCounting_Concurrent(t *testing.T) {
+	r := NewRegistry()
+	port := 20001
+
+	// Reserve and bind with high limit
+	release, err := r.ReservePorts([]int{port})
+	require.NoError(t, err)
+	defer release()
+
+	mockSession := &yamux.Session{}
+	mockListener := &mockNetListener{}
+	meta := ClientMeta{ClientName: "test"}
+
+	err = r.BindSession(port, mockSession, mockListener, meta, 1000)
+	require.NoError(t, err)
+
+	// Concurrently increment and decrement
+	const numGoroutines = 100
+	const incrementsPerGoroutine = 10
+
+	done := make(chan bool, numGoroutines)
+
+	// Increment goroutines
+	for i := 0; i < numGoroutines/2; i++ {
+		go func() {
+			for j := 0; j < incrementsPerGoroutine; j++ {
+				r.IncrementConnections(port)
+			}
+			done <- true
+		}()
+	}
+
+	// Decrement goroutines
+	for i := 0; i < numGoroutines/2; i++ {
+		go func() {
+			for j := 0; j < incrementsPerGoroutine; j++ {
+				r.DecrementConnections(port)
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Final count should be 0 (equal increments and decrements)
+	count := r.GetConnectionCount(port)
+	assert.Equal(t, 0, count)
+}
+
+func TestConnectionCounting_LimitEnforcement(t *testing.T) {
+	r := NewRegistry()
+	port := 20001
+
+	// Reserve and bind with limit of 5
+	release, err := r.ReservePorts([]int{port})
+	require.NoError(t, err)
+	defer release()
+
+	mockSession := &yamux.Session{}
+	mockListener := &mockNetListener{}
+	meta := ClientMeta{ClientName: "test"}
+
+	err = r.BindSession(port, mockSession, mockListener, meta, 5)
+	require.NoError(t, err)
+
+	// Try to increment beyond limit concurrently
+	const numGoroutines = 20
+	successCount := make(chan bool, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			successCount <- r.IncrementConnections(port)
+		}()
+	}
+
+	// Count successful increments
+	successes := 0
+	for i := 0; i < numGoroutines; i++ {
+		if <-successCount {
+			successes++
+		}
+	}
+
+	// Should have exactly 5 successes (the limit)
+	assert.Equal(t, 5, successes)
+	assert.Equal(t, 5, r.GetConnectionCount(port))
 }

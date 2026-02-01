@@ -35,4 +35,4 @@ RUN adduser -D -u 1000 rsk
 USER rsk
 
 ENTRYPOINT ["./rsk-server"]
-CMD ["--listen", ":7000", "--bind", "0.0.0.0", "--port-range", "20000-40000"]
+CMD ["--listen", ":7000", "--bind", "0.0.0.0", "--port-range", "20000-40000", "--max-clients", "100", "--max-auth-failures", "5", "--auth-block-duration", "5m", "--max-connections-per-client", "100"]

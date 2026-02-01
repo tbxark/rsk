@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/armon/go-socks5"
@@ -18,6 +19,27 @@ type SOCKSManager struct {
 	logger   *zap.Logger // Logger instance
 }
 
+// connCountingStream wraps a net.Conn to decrement connection count on close
+type connCountingStream struct {
+	net.Conn
+	port      int
+	registry  *Registry
+	logger    *zap.Logger
+	closeOnce sync.Once
+}
+
+func (c *connCountingStream) Close() error {
+	var err error
+	c.closeOnce.Do(func() {
+		err = c.Conn.Close()
+		c.registry.DecrementConnections(c.port)
+		c.logger.Debug("Connection closed, decremented count",
+			zap.Int("port", c.port),
+			zap.Int("remaining", c.registry.GetConnectionCount(c.port)))
+	})
+	return err
+}
+
 // NewSOCKSManager creates a new SOCKSManager instance
 func NewSOCKSManager(registry *Registry, logger *zap.Logger) *SOCKSManager {
 	return &SOCKSManager{
@@ -26,8 +48,24 @@ func NewSOCKSManager(registry *Registry, logger *zap.Logger) *SOCKSManager {
 	}
 }
 
-func (m *SOCKSManager) createDialer(sess *yamux.Session) func(ctx context.Context, network, addr string) (net.Conn, error) {
+func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		// Try to increment connection count before opening stream
+		if !m.registry.IncrementConnections(port) {
+			m.logger.Warn("Per-client connection limit reached",
+				zap.Int("port", port),
+				zap.Int("current", m.registry.GetConnectionCount(port)))
+			return nil, fmt.Errorf("connection limit reached for client")
+		}
+
+		// Ensure decrement happens when connection closes
+		decremented := false
+		defer func() {
+			if !decremented {
+				m.registry.DecrementConnections(port)
+			}
+		}()
+
 		stream, err := sess.OpenStream()
 		if err != nil {
 			m.logger.Error("Failed to open yamux stream", zap.Error(err))
@@ -50,14 +88,21 @@ func (m *SOCKSManager) createDialer(sess *yamux.Session) func(ctx context.Contex
 			return nil, err
 		}
 
-		return stream, nil
+		// Wrap the stream to decrement on close
+		decremented = true
+		return &connCountingStream{
+			Conn:     stream,
+			port:     port,
+			registry: m.registry,
+			logger:   m.logger,
+		}, nil
 	}
 }
 
 // StartListener creates and starts a SOCKS5 server on the specified port.
 func (m *SOCKSManager) StartListener(port int, sess *yamux.Session) (net.Listener, error) {
 	conf := &socks5.Config{
-		Dial: m.createDialer(sess),
+		Dial: m.createDialer(port, sess),
 	}
 
 	server, err := socks5.New(conf)

@@ -122,3 +122,55 @@ func TestClearDeadline(t *testing.T) {
 	assert.Equal(t, 4, n)
 	assert.Equal(t, "test", string(buf[:n]))
 }
+
+func TestGenerateToken(t *testing.T) {
+	tests := []struct {
+		name   string
+		length int
+	}{
+		{
+			name:   "minimum length",
+			length: MinTokenLength,
+		},
+		{
+			name:   "longer token",
+			length: 32,
+		},
+		{
+			name:   "below minimum (should use minimum)",
+			length: 8,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := GenerateToken(tt.length)
+			require.NoError(t, err)
+			assert.NotEmpty(t, token)
+
+			expectedLength := tt.length
+			if tt.length < MinTokenLength {
+				expectedLength = MinTokenLength
+			}
+			assert.Equal(t, expectedLength, len(token), "token should have correct length")
+
+			// Verify token only contains alphanumeric characters
+			for _, c := range token {
+				assert.True(t,
+					(c >= '0' && c <= '9') ||
+						(c >= 'a' && c <= 'z') ||
+						(c >= 'A' && c <= 'Z'),
+					"token should only contain alphanumeric characters, found: %c", c)
+			}
+		})
+	}
+
+	// Test uniqueness
+	t.Run("generates unique tokens", func(t *testing.T) {
+		token1, err := GenerateToken(MinTokenLength)
+		require.NoError(t, err)
+		token2, err := GenerateToken(MinTokenLength)
+		require.NoError(t, err)
+		assert.NotEqual(t, token1, token2, "consecutive tokens should be different")
+	})
+}

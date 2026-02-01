@@ -32,7 +32,11 @@ echo "Starting RSK server..."
   --listen ":$SERVER_PORT" \
   --token "$TOKEN" \
   --bind 127.0.0.1 \
-  --port-range 20000-25000 &
+  --port-range 20000-25000 \
+  --max-clients 100 \
+  --max-auth-failures 5 \
+  --auth-block-duration 5m \
+  --max-connections-per-client 100 &
 SERVER_PID=$!
 
 # Wait for server to start
@@ -44,7 +48,8 @@ echo "Starting RSK client..."
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
   --ports "$CLIENT_PORT" \
-  --name "example-client" &
+  --name "example-client" \
+  --allow-private-networks &
 CLIENT_PID=$!
 
 # Wait for client to connect

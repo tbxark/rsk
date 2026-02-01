@@ -14,28 +14,42 @@ import (
 )
 
 type Server struct {
-	listenAddr string      // Address to listen for client connections
-	bindIP     string      // IP address to bind SOCKS5 listeners
-	token      []byte      // Authentication token
-	portMin    int         // Minimum allowed port
-	portMax    int         // Maximum allowed port
-	registry   *Registry   // Port registry
-	logger     *zap.Logger // Logger instance
+	config   *Config     // Server configuration
+	registry *Registry   // Port registry
+	logger   *zap.Logger // Logger instance
 }
 
 // handleClientConnection handles a single client connection through the complete lifecycle:
 // handshake, validation, port reservation, session establishment, and cleanup.
 func handleClientConnection(
 	conn net.Conn,
+	connLimiter *ConnectionLimiter,
+	rateLimiter *RateLimiter,
 	token []byte,
 	portMin, portMax int,
+	maxConnsPerClient int,
 	registry *Registry,
 	socksManager *SOCKSManager,
 	logger *zap.Logger,
 ) {
+	defer connLimiter.Release()
 	defer func() {
 		_ = conn.Close()
 	}()
+
+	// Extract remote IP from connection
+	remoteIP, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		logger.Error("Failed to extract remote IP", zap.Error(err))
+		return
+	}
+
+	// Check if IP is blocked due to rate limiting
+	if rateLimiter.IsBlocked(remoteIP) {
+		logger.Warn("Connection blocked due to rate limiting",
+			zap.String("remote_ip", remoteIP))
+		return
+	}
 
 	if err := common.SetReadDeadline(conn, 5*time.Second); err != nil {
 		logger.Error("Failed to set read deadline", zap.Error(err))
@@ -69,9 +83,20 @@ func handleClientConnection(
 
 	if !common.TokenEqual(hello.Token, token) {
 		logger.Warn("Token mismatch - authentication failed")
+
+		// Record authentication failure and check if should block
+		shouldBlock := rateLimiter.RecordFailure(remoteIP)
+		if shouldBlock {
+			logger.Warn("IP blocked due to authentication failures",
+				zap.String("remote_ip", remoteIP))
+		}
+
 		sendErrorResponse(conn, proto.StatusAuthFail, "Authentication failed", logger)
 		return
 	}
+
+	// Reset rate limiter on successful authentication
+	rateLimiter.Reset(remoteIP)
 
 	for _, port := range hello.Ports {
 		if int(port) < portMin || int(port) > portMax {
@@ -194,7 +219,7 @@ func handleClientConnection(
 			return
 		}
 
-		if err := registry.BindSession(port, session, socksListener, clientMeta); err != nil {
+		if err := registry.BindSession(port, session, socksListener, clientMeta, int32(maxConnsPerClient)); err != nil {
 			logger.Error("Failed to bind session to port", zap.Int("port", port), zap.Error(err))
 			_ = session.Close()
 			_ = socksListener.Close()
@@ -241,30 +266,37 @@ func sendErrorResponse(conn net.Conn, status uint8, message string, logger *zap.
 	}
 }
 
-// NewServer creates a new Server.
-func NewServer(listenAddr, bindIP string, token []byte, portMin, portMax int, logger *zap.Logger) *Server {
+// NewServer creates a new Server from the provided configuration.
+func NewServer(config *Config, logger *zap.Logger) *Server {
 	return &Server{
-		listenAddr: listenAddr,
-		bindIP:     bindIP,
-		token:      token,
-		portMin:    portMin,
-		portMax:    portMax,
-		registry:   NewRegistry(),
-		logger:     logger,
+		config:   config,
+		registry: NewRegistry(),
+		logger:   logger,
 	}
 }
 
 // Start starts the server and accepts client connections.
 func (s *Server) Start(ctx context.Context) error {
-	listener, err := net.Listen("tcp", s.listenAddr)
+	listener, err := net.Listen("tcp", s.config.ListenAddr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", s.listenAddr, err)
+		return fmt.Errorf("failed to listen on %s: %w", s.config.ListenAddr, err)
 	}
 	defer func() {
 		_ = listener.Close()
 	}()
 
-	s.logger.Info("Server listening", zap.String("address", s.listenAddr))
+	s.logger.Info("Server listening", zap.String("address", s.config.ListenAddr))
+
+	// Create connection limiter
+	connLimiter := NewConnectionLimiter(s.config.MaxClients)
+	s.logger.Info("Connection limiter initialized", zap.Int("max_clients", s.config.MaxClients))
+
+	// Create rate limiter
+	rateLimiter := NewRateLimiter(s.config.MaxAuthFailures, s.config.AuthBlockDuration)
+	defer rateLimiter.Close()
+	s.logger.Info("Rate limiter initialized",
+		zap.Int("max_auth_failures", s.config.MaxAuthFailures),
+		zap.Duration("auth_block_duration", s.config.AuthBlockDuration))
 
 	socksManager := NewSOCKSManager(s.registry, s.logger)
 
@@ -292,13 +324,26 @@ func (s *Server) Start(ctx context.Context) error {
 			}
 		}
 
-		s.logger.Info("Accepted new connection", zap.String("remote_addr", conn.RemoteAddr().String()))
+		s.logger.Debug("Accepted new connection", zap.String("remote_addr", conn.RemoteAddr().String()))
+
+		// Try to acquire a connection slot
+		if !connLimiter.Acquire() {
+			s.logger.Warn("Connection limit reached, rejecting new connection",
+				zap.String("remote_addr", conn.RemoteAddr().String()),
+				zap.Int("max_clients", s.config.MaxClients),
+				zap.Int("available", connLimiter.Available()))
+			_ = conn.Close()
+			continue
+		}
 
 		go handleClientConnection(
 			conn,
-			s.token,
-			s.portMin,
-			s.portMax,
+			connLimiter,
+			rateLimiter,
+			s.config.Token,
+			s.config.PortMin,
+			s.config.PortMax,
+			s.config.MaxConnsPerClient,
 			s.registry,
 			socksManager,
 			s.logger,

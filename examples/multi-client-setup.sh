@@ -31,7 +31,11 @@ echo "Starting RSK server on port $SERVER_PORT..."
   --listen ":$SERVER_PORT" \
   --token "$TOKEN" \
   --bind 127.0.0.1 \
-  --port-range 20000-25000 &
+  --port-range 20000-25000 \
+  --max-clients 100 \
+  --max-auth-failures 5 \
+  --auth-block-duration 5m \
+  --max-connections-per-client 100 &
 SERVER_PID=$!
 
 sleep 2
@@ -42,7 +46,8 @@ echo "Starting Client 1 (port 20001)..."
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
   --ports 20001 \
-  --name "client-1" &
+  --name "client-1" \
+  --allow-private-networks &
 CLIENT1_PID=$!
 
 sleep 1
@@ -53,7 +58,8 @@ echo "Starting Client 2 (port 20002)..."
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
   --ports 20002 \
-  --name "client-2" &
+  --name "client-2" \
+  --allow-private-networks &
 CLIENT2_PID=$!
 
 sleep 1
@@ -64,7 +70,8 @@ echo "Starting Client 3 (ports 20003-20005)..."
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
   --ports 20003,20004,20005 \
-  --name "client-3-multi-port" &
+  --name "client-3-multi-port" \
+  --allow-private-networks &
 CLIENT3_PID=$!
 
 sleep 2
