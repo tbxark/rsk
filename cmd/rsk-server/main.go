@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/pflag"
+	"github.com/tbxark/rsk/pkg/rsk/common"
 	"github.com/tbxark/rsk/pkg/rsk/server"
 	"github.com/tbxark/rsk/pkg/rsk/version"
 	"go.uber.org/zap"
@@ -41,11 +42,17 @@ func main() {
 		logger.Fatal("Failed to parse flags", zap.Error(err))
 	}
 
+	// Validate token strength
+	if err := common.ValidateToken([]byte(cfg.token)); err != nil {
+		logger.Fatal("Token validation failed", zap.Error(err))
+	}
+
 	logger.Info("Configuration loaded",
 		zap.String("listen", cfg.listenAddr),
 		zap.String("bind", cfg.bindIP),
 		zap.Int("port_min", cfg.portMin),
-		zap.Int("port_max", cfg.portMax))
+		zap.Int("port_max", cfg.portMax),
+		zap.Bool("token_validated", true))
 
 	srv := server.NewServer(
 		cfg.listenAddr,
@@ -97,7 +104,15 @@ func parseFlags() (*Config, error) {
 	}
 
 	if conf.token == "" {
-		return nil, fmt.Errorf("--token is required")
+		// Auto-generate a secure token
+		generatedToken, err := common.GenerateToken(common.MinTokenLength)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate token: %w", err)
+		}
+		conf.token = generatedToken
+		fmt.Printf("\n⚠️  No token provided. Auto-generated secure token:\n")
+		fmt.Printf("   %s\n", generatedToken)
+		fmt.Printf("\n💡 Save this token! Use it with: --token=\"%s\"\n\n", generatedToken)
 	}
 
 	parts := strings.Split(*portRange, "-")
