@@ -4,44 +4,39 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/spf13/pflag"
-	"go.uber.org/zap"
 
 	"github.com/tbxark/rsk/pkg/rsk/client"
 	"github.com/tbxark/rsk/pkg/rsk/version"
 )
 
 func main() {
-	logger, err := initLogger()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() {
-		_ = logger.Sync()
-	}()
+	logger := slog.Default()
 
 	cfg, err := parseFlags()
 	if err != nil {
-		logger.Fatal("Failed to parse configuration", zap.Error(err))
+		logger.Error("Failed to parse configuration", "error", err)
+		os.Exit(1)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		logger.Fatal("Configuration validation failed", zap.Error(err))
+		logger.Error("Configuration validation failed", "error", err)
+		os.Exit(1)
 	}
 
 	logger.Info("RSK Client starting",
-		zap.String("server", cfg.ServerAddr),
-		zap.Int("port", cfg.Port),
-		zap.String("name", cfg.Name),
-		zap.Bool("token_validated", true),
-		zap.Bool("allow_private_networks", cfg.AllowPrivateNetworks),
-		zap.Strings("blocked_networks", cfg.BlockedNetworks))
+		"server", cfg.ServerAddr,
+		"port", cfg.Port,
+		"name", cfg.Name,
+		"token_validated", true,
+		"allow_private_networks", cfg.AllowPrivateNetworks,
+		"blocked_networks", cfg.BlockedNetworks)
 
 	c := &client.Client{
 		Config:         cfg,
@@ -56,12 +51,12 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
-		logger.Info("Received signal, shutting down", zap.String("signal", sig.String()))
+		logger.Info("Received signal, shutting down", "signal", sig.String())
 		cancel()
 	}()
 
 	if err := c.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		logger.Error("Client error", zap.Error(err))
+		logger.Error("Client error", "error", err)
 		os.Exit(1)
 	}
 
@@ -132,10 +127,4 @@ func parseFlags() (*client.Config, error) {
 		AllowPrivateNetworks: allowPrivateNetworks,
 		BlockedNetworks:      blockedNetworks,
 	}, nil
-}
-
-func initLogger() (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	return config.Build()
 }

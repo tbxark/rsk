@@ -3,10 +3,9 @@ package client
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"time"
-
-	"go.uber.org/zap"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/yamux"
@@ -18,38 +17,38 @@ import (
 type Client struct {
 	Config         *Config
 	ReconnectDelay time.Duration
-	Logger         *zap.Logger
+	Logger         *slog.Logger
 }
 
-func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFilter, logger *zap.Logger) {
+func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFilter, logger *slog.Logger) {
 	defer func() {
 		_ = stream.Close()
 	}()
 
 	if err := common.SetReadDeadline(stream, 5*time.Second); err != nil {
-		logger.Error("Failed to set read deadline for CONNECT_REQ", zap.Error(err))
+		logger.Error("Failed to set read deadline for CONNECT_REQ", "error", err)
 		return
 	}
 
 	addr, err := proto.ReadConnectReq(stream)
 	if err != nil {
-		logger.Error("Failed to read CONNECT_REQ", zap.Error(err))
+		logger.Error("Failed to read CONNECT_REQ", "error", err)
 		return
 	}
 
-	logger.Debug("Received CONNECT_REQ", zap.String("addr", addr))
+	logger.Debug("Received CONNECT_REQ", "addr", addr)
 
 	// Validate address with filter
 	if err := filter.IsAllowed(addr); err != nil {
 		logger.Warn("Target address blocked by filter",
-			zap.String("addr", addr),
-			zap.Error(err))
+			"addr", addr,
+			"error", err)
 		return
 	}
 
 	target, err := net.DialTimeout("tcp", addr, dialTimeout)
 	if err != nil {
-		logger.Warn("Failed to dial target", zap.String("addr", addr), zap.Error(err))
+		logger.Warn("Failed to dial target", "addr", addr, "error", err)
 		return
 	}
 	defer func() {
@@ -57,11 +56,11 @@ func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFil
 	}()
 
 	if err := common.ClearDeadline(stream); err != nil {
-		logger.Error("Failed to clear stream deadline", zap.Error(err))
+		logger.Error("Failed to clear stream deadline", "error", err)
 		return
 	}
 
-	logger.Debug("Connected to target", zap.String("addr", addr))
+	logger.Debug("Connected to target", "addr", addr)
 
 	done := make(chan error, 2)
 
@@ -78,9 +77,9 @@ func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFil
 	err = <-done
 
 	if err != nil && err != io.EOF {
-		logger.Debug("Connection closed with error", zap.String("addr", addr), zap.Error(err))
+		logger.Debug("Connection closed with error", "addr", addr, "error", err)
 	} else {
-		logger.Debug("Connection closed", zap.String("addr", addr))
+		logger.Debug("Connection closed", "addr", addr)
 	}
 }
 
@@ -152,9 +151,9 @@ func (c *Client) connect() (*yamux.Session, error) {
 	}
 
 	c.Logger.Info("Successfully connected to server",
-		zap.String("server", c.Config.ServerAddr),
-		zap.Int("port", c.Config.Port),
-		zap.Uint16s("accepted_ports", resp.AcceptedPorts))
+		"server", c.Config.ServerAddr,
+		"port", c.Config.Port,
+		"accepted_ports", resp.AcceptedPorts)
 
 	return session, nil
 }
@@ -210,13 +209,13 @@ func (c *Client) Run(ctx context.Context) error {
 	// Create address filter
 	filter, err := NewAddressFilter(c.Config.AllowPrivateNetworks, c.Config.BlockedNetworks)
 	if err != nil {
-		c.Logger.Error("Failed to create address filter", zap.Error(err))
+		c.Logger.Error("Failed to create address filter", "error", err)
 		return err
 	}
 
 	c.Logger.Info("Address filter initialized",
-		zap.Bool("allow_private", c.Config.AllowPrivateNetworks),
-		zap.Int("blocked_networks_count", len(c.Config.BlockedNetworks)))
+		"allow_private", c.Config.AllowPrivateNetworks,
+		"blocked_networks_count", len(c.Config.BlockedNetworks))
 
 	// Configure exponential backoff
 	b := backoff.NewExponentialBackOff()
@@ -240,25 +239,25 @@ func (c *Client) Run(ctx context.Context) error {
 		}
 
 		c.Logger.Info("Connecting to server",
-			zap.String("server", c.Config.ServerAddr),
-			zap.Int("attempt", attempt))
+			"server", c.Config.ServerAddr,
+			"attempt", attempt)
 
 		session, err := c.connect()
 		if err != nil {
 			if hsErr, ok := err.(*HandshakeError); ok {
 				if hsErr.IsAuthFail() {
-					c.Logger.Error("Authentication failed, exiting", zap.Error(err))
+					c.Logger.Error("Authentication failed, exiting", "error", err)
 					return backoff.Permanent(err)
 				}
 
 				if hsErr.IsPortInUse() {
-					c.Logger.Error("Ports already in use, exiting", zap.Error(err))
+					c.Logger.Error("Ports already in use, exiting", "error", err)
 					return backoff.Permanent(err)
 				}
 
-				c.Logger.Warn("Handshake failed, will retry", zap.Error(err))
+				c.Logger.Warn("Handshake failed, will retry", "error", err)
 			} else {
-				c.Logger.Warn("Connection failed, will retry", zap.Error(err))
+				c.Logger.Warn("Connection failed, will retry", "error", err)
 			}
 			return err
 		}
@@ -270,7 +269,7 @@ func (c *Client) Run(ctx context.Context) error {
 		c.Logger.Info("Session established, handling streams")
 		err = c.handleStreams(session, filter)
 
-		c.Logger.Warn("Session closed, will reconnect", zap.Error(err))
+		c.Logger.Warn("Session closed, will reconnect", "error", err)
 		_ = session.Close()
 
 		// Return error to trigger backoff

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -11,12 +12,11 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/tbxark/rsk/pkg/rsk/common"
 	"github.com/tbxark/rsk/pkg/rsk/proto"
-	"go.uber.org/zap"
 )
 
 type SOCKSManager struct {
-	registry *Registry   // Port registry
-	logger   *zap.Logger // Logger instance
+	registry *Registry    // Port registry
+	logger   *slog.Logger // Logger instance
 }
 
 // connCountingStream wraps a net.Conn to decrement connection count on close
@@ -24,7 +24,7 @@ type connCountingStream struct {
 	net.Conn
 	port      int
 	registry  *Registry
-	logger    *zap.Logger
+	logger    *slog.Logger
 	closeOnce sync.Once
 }
 
@@ -34,14 +34,14 @@ func (c *connCountingStream) Close() error {
 		err = c.Conn.Close()
 		c.registry.DecrementConnections(c.port)
 		c.logger.Debug("Connection closed, decremented count",
-			zap.Int("port", c.port),
-			zap.Int("remaining", c.registry.GetConnectionCount(c.port)))
+			"port", c.port,
+			"remaining", c.registry.GetConnectionCount(c.port))
 	})
 	return err
 }
 
 // NewSOCKSManager creates a new SOCKSManager instance
-func NewSOCKSManager(registry *Registry, logger *zap.Logger) *SOCKSManager {
+func NewSOCKSManager(registry *Registry, logger *slog.Logger) *SOCKSManager {
 	return &SOCKSManager{
 		registry: registry,
 		logger:   logger,
@@ -53,8 +53,8 @@ func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx cont
 		// Try to increment connection count before opening stream
 		if !m.registry.IncrementConnections(port) {
 			m.logger.Warn("Per-client connection limit reached",
-				zap.Int("port", port),
-				zap.Int("current", m.registry.GetConnectionCount(port)))
+				"port", port,
+				"current", m.registry.GetConnectionCount(port))
 			return nil, fmt.Errorf("connection limit reached for client")
 		}
 
@@ -68,7 +68,7 @@ func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx cont
 
 		stream, err := sess.OpenStream()
 		if err != nil {
-			m.logger.Error("Failed to open yamux stream", zap.Error(err))
+			m.logger.Error("Failed to open yamux stream", "error", err)
 			return nil, err
 		}
 
@@ -79,7 +79,7 @@ func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx cont
 
 		if err := proto.WriteConnectReq(stream, addr); err != nil {
 			_ = stream.Close()
-			m.logger.Error("Failed to write CONNECT_REQ", zap.String("addr", addr), zap.Error(err))
+			m.logger.Error("Failed to write CONNECT_REQ", "addr", addr, "error", err)
 			return nil, err
 		}
 
@@ -117,13 +117,13 @@ func (m *SOCKSManager) StartListener(port int, sess *yamux.Session) (net.Listene
 	}
 
 	go func() {
-		m.logger.Info("SOCKS5 listener started", zap.Int("port", port))
+		m.logger.Info("SOCKS5 listener started", "port", port)
 		if err := server.Serve(listener); err != nil {
 			if opErr, ok := err.(*net.OpError); !ok || opErr.Err.Error() != "use of closed network connection" {
-				m.logger.Error("SOCKS5 server error", zap.Int("port", port), zap.Error(err))
+				m.logger.Error("SOCKS5 server error", "port", port, "error", err)
 			}
 		}
-		m.logger.Info("SOCKS5 listener stopped", zap.Int("port", port))
+		m.logger.Info("SOCKS5 listener stopped", "port", port)
 	}()
 
 	return listener, nil

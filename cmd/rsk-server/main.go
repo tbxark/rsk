@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,40 +14,34 @@ import (
 	"github.com/tbxark/rsk/pkg/rsk/common"
 	"github.com/tbxark/rsk/pkg/rsk/server"
 	"github.com/tbxark/rsk/pkg/rsk/version"
-	"go.uber.org/zap"
 )
 
 func main() {
-	logger, err := initLogger()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() {
-		_ = logger.Sync()
-	}()
+	logger := slog.Default()
 
 	logger.Info("RSK Server starting")
 
 	cfg, err := parseFlags()
 	if err != nil {
-		logger.Fatal("Failed to parse configuration", zap.Error(err))
+		logger.Error("Failed to parse configuration", "error", err)
+		os.Exit(1)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		logger.Fatal("Configuration validation failed", zap.Error(err))
+		logger.Error("Configuration validation failed", "error", err)
+		os.Exit(1)
 	}
 
 	logger.Info("Configuration loaded",
-		zap.String("listen", cfg.ListenAddr),
-		zap.String("bind", cfg.BindIP),
-		zap.Int("port_min", cfg.PortMin),
-		zap.Int("port_max", cfg.PortMax),
-		zap.Int("max_clients", cfg.MaxClients),
-		zap.Int("max_auth_failures", cfg.MaxAuthFailures),
-		zap.Duration("auth_block_duration", cfg.AuthBlockDuration),
-		zap.Int("max_connections_per_client", cfg.MaxConnsPerClient),
-		zap.Bool("token_validated", true))
+		"listen", cfg.ListenAddr,
+		"bind", cfg.BindIP,
+		"port_min", cfg.PortMin,
+		"port_max", cfg.PortMax,
+		"max_clients", cfg.MaxClients,
+		"max_auth_failures", cfg.MaxAuthFailures,
+		"auth_block_duration", cfg.AuthBlockDuration,
+		"max_connections_per_client", cfg.MaxConnsPerClient,
+		"token_validated", true)
 
 	srv := server.NewServer(cfg, logger)
 
@@ -65,10 +60,11 @@ func main() {
 
 	select {
 	case sig := <-sigChan:
-		logger.Info("Received signal, shutting down", zap.String("signal", sig.String()))
+		logger.Info("Received signal, shutting down", "signal", sig.String())
 		cancel()
 	case err := <-errChan:
-		logger.Fatal("Server error", zap.Error(err))
+		logger.Error("Server error", "error", err)
+		os.Exit(1)
 	}
 
 	logger.Info("RSK Server stopped")
@@ -133,10 +129,4 @@ func parseFlags() (*server.Config, error) {
 		AuthBlockDuration: authBlockDuration,
 		MaxConnsPerClient: maxConnsPerClient,
 	}, nil
-}
-
-func initLogger() (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	return config.Build()
 }

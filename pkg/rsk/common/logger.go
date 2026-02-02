@@ -1,15 +1,20 @@
 package common
 
-import "go.uber.org/zap"
+import (
+	"log/slog"
+	"os"
+)
 
-// NewLogger creates a production logger with the specified level.
-func NewLogger(level zap.AtomicLevel) (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.Level = level
-	return config.Build()
+// NewLogger creates a logger with the specified level.
+func NewLogger(level slog.Level) *slog.Logger {
+	opts := &slog.HandlerOptions{
+		Level: level,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, opts)
+	return slog.New(handler)
 }
 
 // NewDefaultLogger creates a logger with Info level.
-func NewDefaultLogger() (*zap.Logger, error) {
-	return NewLogger(zap.NewAtomicLevelAt(zap.InfoLevel))
+func NewDefaultLogger() *slog.Logger {
+	return NewLogger(slog.LevelInfo)
 }

@@ -2,16 +2,17 @@ package server
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/tbxark/rsk/pkg/rsk/proto"
-	"go.uber.org/zap"
 )
 
 func TestServerRateLimiterIntegration(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	token := []byte("test-token-12345")
 
 	// Create server with low rate limit for testing

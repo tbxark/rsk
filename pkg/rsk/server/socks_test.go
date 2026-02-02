@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"testing"
@@ -11,11 +13,10 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestSOCKSManager_ConnectionCounting(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 	socksManager := NewSOCKSManager(registry, logger)
 
@@ -61,7 +62,7 @@ func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 }
 
 func TestSOCKSManager_ConnectionLimit(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 	socksManager := NewSOCKSManager(registry, logger)
 
@@ -109,7 +110,7 @@ func TestSOCKSManager_ConnectionLimit(t *testing.T) {
 }
 
 func TestConnCountingStream_Close(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
 	port := 20001
@@ -157,7 +158,7 @@ func TestConnCountingStream_Close(t *testing.T) {
 }
 
 func TestConnCountingStream_CloseIdempotent(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
 	port := 20001
@@ -206,7 +207,7 @@ func TestConnCountingStream_CloseIdempotent(t *testing.T) {
 }
 
 func TestConnCountingStream_ConcurrentClose(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
 	port := 20001
@@ -259,7 +260,7 @@ func TestConnCountingStream_ConcurrentClose(t *testing.T) {
 }
 
 func TestSOCKSManager_MultipleConnections(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
 	port := 20001
@@ -313,7 +314,7 @@ func TestSOCKSManager_MultipleConnections(t *testing.T) {
 }
 
 func TestSOCKSManager_ConnectionLifecycle(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
 	port := 20001
@@ -384,7 +385,7 @@ func TestSOCKSManager_ConnectionLifecycle(t *testing.T) {
 }
 
 func TestSOCKSManager_ErrorHandling(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 	socksManager := NewSOCKSManager(registry, logger)
 
@@ -430,7 +431,7 @@ func TestSOCKSManager_ErrorHandling(t *testing.T) {
 }
 
 func TestSOCKSManager_PortNotFound(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 	socksManager := NewSOCKSManager(registry, logger)
 
@@ -458,7 +459,7 @@ func TestSOCKSManager_PortNotFound(t *testing.T) {
 }
 
 func TestSOCKSManager_RapidConnectionCycling(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
 	port := 20001
@@ -549,7 +550,7 @@ func TestSOCKSManager_ConcurrentConnectionAttempts(t *testing.T) {
 }
 
 func TestNewSOCKSManager(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
 	manager := NewSOCKSManager(registry, logger)
@@ -561,7 +562,7 @@ func TestNewSOCKSManager(t *testing.T) {
 
 func TestSOCKSManager_StartListener(t *testing.T) {
 	registry := NewRegistry()
-	socksManager := NewSOCKSManager(registry, zap.NewNop())
+	socksManager := NewSOCKSManager(registry, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	// Find an available port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
