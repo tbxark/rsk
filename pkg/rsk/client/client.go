@@ -267,7 +267,17 @@ func (c *Client) Run(ctx context.Context) error {
 		b.Reset()
 
 		c.Logger.Info("Session established, handling streams")
+		stopCh := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				_ = session.Close()
+			case <-stopCh:
+			}
+		}()
+
 		err = c.handleStreams(session, filter)
+		close(stopCh)
 
 		c.Logger.Warn("Session closed, will reconnect", "error", err)
 		_ = session.Close()

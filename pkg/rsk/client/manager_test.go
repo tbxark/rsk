@@ -2,10 +2,15 @@ package client
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"net"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/tbxark/rsk/pkg/rsk/proto"
 )
 
 func TestNewManager(t *testing.T) {
@@ -280,5 +285,96 @@ func TestManagerWithTimeout(t *testing.T) {
 	// Manager should have stopped due to context timeout
 	if manager.IsRunning() {
 		t.Error("Manager should have stopped after context timeout")
+	}
+}
+
+func TestManagerAutoRestartStopsOnPortInUse(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to start test listener: %v", err)
+	}
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	var accepts int32
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			atomic.AddInt32(&accepts, 1)
+			go func(c net.Conn) {
+				defer func() {
+					_ = c.Close()
+				}()
+				_ = c.SetDeadline(time.Now().Add(2 * time.Second))
+				_, err := proto.ReadHello(c)
+				if err != nil {
+					return
+				}
+				resp := proto.HelloResp{
+					Version: proto.Version,
+					Status:  proto.StatusPortInUse,
+					Message: "port in use",
+				}
+				_ = proto.WriteHelloResp(c, resp)
+			}(conn)
+			select {
+			case <-stopCh:
+				return
+			default:
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	manager := NewManager(nil)
+	opts := ManagerOptions{
+		Config: &Config{
+			ServerAddr:           listener.Addr().String(),
+			Token:                []byte("test-token-16-bytes-minimum"),
+			Port:                 20001,
+			Name:                 "test-client",
+			DialTimeout:          10 * time.Second,
+			AllowPrivateNetworks: false,
+		},
+		AutoRestart:  true,
+		RestartDelay: 50 * time.Millisecond,
+	}
+
+	_, err = manager.Start(ctx, opts)
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case <-timeout:
+			t.Fatal("timeout waiting for manager to stop")
+		default:
+			status := manager.GetStatus()
+			if !status.Running && status.LastError != nil {
+				var hsErr *HandshakeError
+				if !errors.As(status.LastError, &hsErr) || !hsErr.IsPortInUse() {
+					t.Fatalf("expected port-in-use error, got %v", status.LastError)
+				}
+				if status.RestartCount != 0 {
+					t.Fatalf("expected no restarts, got %d", status.RestartCount)
+				}
+				if atomic.LoadInt32(&accepts) != 1 {
+					t.Fatalf("expected single connect attempt, got %d", atomic.LoadInt32(&accepts))
+				}
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
 	}
 }

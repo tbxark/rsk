@@ -205,7 +205,7 @@ func (m *Manager) runWithAutoRestart(cfg *Config) {
 		}
 
 		// Create new context for this attempt
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(m.restartCtx)
 		m.mu.Lock()
 		m.ctx = ctx
 		m.cancel = cancel
@@ -241,6 +241,13 @@ func (m *Manager) runWithAutoRestart(cfg *Config) {
 			m.lastError = err
 			m.mu.Unlock()
 			m.setStatus(false, m.port, fmt.Sprintf("Error: %v", err))
+		}
+
+		var hsErr *HandshakeError
+		if errors.As(err, &hsErr) && hsErr.IsPortInUse() {
+			m.logger.Warn("Port already in use, stopping auto-restart", "error", err)
+			m.setStatus(false, m.port, fmt.Sprintf("Port in use: %v", err))
+			return
 		}
 
 		attempt++
