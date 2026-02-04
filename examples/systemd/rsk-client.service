@@ -11,15 +11,15 @@ Group=rsk
 WorkingDirectory=/opt/rsk
 
 # Client configuration
-Environment="RSK_SERVER=your-server.com:7000"
+Environment="RSK_SERVER=your-server.com:9527"
 Environment="RSK_TOKEN=CHANGE_ME_TO_SECURE_TOKEN"
-Environment="RSK_PORTS=20001"
+Environment="RSK_PORT=20001"
 Environment="RSK_NAME=exit-node-1"
 
 ExecStart=/opt/rsk/rsk-client \
   --server ${RSK_SERVER} \
   --token ${RSK_TOKEN} \
-  --ports ${RSK_PORTS} \
+  --port ${RSK_PORT} \
   --name ${RSK_NAME} \
   --dial-timeout 15s \
   --allow-private-networks

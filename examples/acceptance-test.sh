@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 # Configuration
 TOKEN="test-token-for-acceptance-testing"
 INVALID_TOKEN="wrong-token-should-fail"
-SERVER_PORT=17000
+SERVER_PORT=19527
 CLIENT1_PORT=20001
 CLIENT2_PORT=20002
 
@@ -110,7 +110,7 @@ log_test "Test 2: Start first client (port $CLIENT1_PORT)"
 ./rsk-client \
     --server "localhost:$SERVER_PORT" \
     --token "$TOKEN" \
-    --ports "$CLIENT1_PORT" \
+    --port "$CLIENT1_PORT" \
     --name "test-client-1" > /tmp/rsk-client1.log 2>&1 &
 CLIENT1_PID=$!
 
@@ -137,7 +137,7 @@ log_test "Test 4: Start second client (port $CLIENT2_PORT)"
 ./rsk-client \
     --server "localhost:$SERVER_PORT" \
     --token "$TOKEN" \
-    --ports "$CLIENT2_PORT" \
+    --port "$CLIENT2_PORT" \
     --name "test-client-2" > /tmp/rsk-client2.log 2>&1 &
 CLIENT2_PID=$!
 
@@ -184,7 +184,7 @@ log_test "Test 8: Test invalid token is rejected"
 ./rsk-client \
     --server "localhost:$SERVER_PORT" \
     --token "$INVALID_TOKEN" \
-    --ports "20003" \
+    --port "20003" \
     --name "invalid-client" > /tmp/rsk-client-invalid.log 2>&1 &
 INVALID_CLIENT_PID=$!
 
@@ -209,7 +209,7 @@ log_test "Test 9: Test port conflict detection"
 ./rsk-client \
     --server "localhost:$SERVER_PORT" \
     --token "$TOKEN" \
-    --ports "$CLIENT1_PORT" \
+    --port "$CLIENT1_PORT" \
     --name "conflict-client" > /tmp/rsk-client-conflict.log 2>&1 &
 CONFLICT_CLIENT_PID=$!
 

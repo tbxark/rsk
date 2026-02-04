@@ -5,7 +5,7 @@
 echo "=== RSK Test Commands ==="
 echo ""
 echo "Prerequisites:"
-echo "  - RSK server running on localhost:7000"
+echo "  - RSK server running on localhost:9527"
 echo "  - RSK client connected and claiming port 20001"
 echo ""
 
@@ -85,15 +85,15 @@ echo "    network.proxy.socks_remote_dns = true"
 echo ""
 
 echo "15. Test error handling (invalid token):"
-echo "    ./rsk-client --server localhost:7000 --token wrong-token --ports 20002"
+echo "    ./rsk-client --server localhost:9527 --token wrong-token --port 20002"
 echo "    # Should see AUTH_FAIL error"
 echo ""
 
 echo "16. Test port conflict detection:"
 echo "    # Start first client on port 20001"
-echo "    ./rsk-client --server localhost:7000 --token TOKEN --ports 20001 &"
+echo "    ./rsk-client --server localhost:9527 --token TOKEN --port 20001 &"
 echo "    # Try to start second client on same port"
-echo "    ./rsk-client --server localhost:7000 --token TOKEN --ports 20001"
+echo "    ./rsk-client --server localhost:9527 --token TOKEN --port 20001"
 echo "    # Should see PORT_IN_USE error"
 echo ""
 
@@ -102,7 +102,7 @@ echo "    ./rsk-server --token TOKEN 2>&1 | jq -R 'fromjson?'"
 echo ""
 
 echo "18. Monitor client logs:"
-echo "    ./rsk-client --server localhost:7000 --token TOKEN --ports 20001 2>&1 | jq -R 'fromjson?'"
+echo "    ./rsk-client --server localhost:9527 --token TOKEN --port 20001 2>&1 | jq -R 'fromjson?'"
 echo ""
 
 echo ""

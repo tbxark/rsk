@@ -26,6 +26,7 @@ func handleClientConnection(
 	connLimiter *ConnectionLimiter,
 	rateLimiter *IPRateLimiter,
 	token []byte,
+	bindIP string,
 	portMin, portMax int,
 	maxConnsPerClient int,
 	registry *Registry,
@@ -133,7 +134,7 @@ func handleClientConnection(
 
 	listeners := make(map[int]net.Listener)
 	for _, port := range ports {
-		addr := fmt.Sprintf("127.0.0.1:%d", port)
+		addr := fmt.Sprintf("%s:%d", bindIP, port)
 		listener, err := net.Listen("tcp", addr)
 		if err != nil {
 			logger.Warn("Failed to bind port", "port", port, "error", err)
@@ -209,7 +210,7 @@ func handleClientConnection(
 			_ = tcpListener.Close()
 		}
 
-		socksListener, err := socksManager.StartListener(port, session)
+		socksListener, err := socksManager.StartListener(port, bindIP, session)
 		if err != nil {
 			logger.Error("Failed to start SOCKS5 listener", "port", port, "error", err)
 			_ = session.Close()
@@ -344,6 +345,7 @@ func (s *Server) Start(ctx context.Context) error {
 			connLimiter,
 			rateLimiter,
 			s.config.Token,
+			s.config.BindIP,
 			s.config.PortMin,
 			s.config.PortMax,
 			s.config.MaxConnsPerClient,

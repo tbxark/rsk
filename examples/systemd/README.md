@@ -53,7 +53,7 @@ sudo systemctl daemon-reload
 Edit `/etc/systemd/system/rsk-server.service` and update:
 
 - `RSK_TOKEN`: Your secure authentication token (minimum 16 bytes)
-- `--listen`: Server listening address (default `:7000`)
+- `--listen`: Server listening address (default `:9527`)
 - `--bind`: SOCKS5 bind address (default `127.0.0.1`)
 - `--port-range`: Allowed port range (default `20000-40000`)
 
@@ -61,9 +61,9 @@ Edit `/etc/systemd/system/rsk-server.service` and update:
 
 Edit `/etc/systemd/system/rsk-client.service` and update:
 
-- `RSK_SERVER`: Server address (e.g., `your-server.com:7000`)
+- `RSK_SERVER`: Server address (e.g., `your-server.com:9527`)
 - `RSK_TOKEN`: Authentication token (must match server)
-- `RSK_PORTS`: Comma-separated ports to claim (e.g., `20001,20002`)
+- `RSK_PORT`: Port to claim (e.g., `20001`)
 - `RSK_NAME`: Client identifier (e.g., `exit-node-us-west`)
 
 ## Usage
@@ -153,7 +153,7 @@ sudo systemctl cat rsk-server
 ping your-server.com
 
 # Check if server port is open
-telnet your-server.com 7000
+telnet your-server.com 9527
 
 # Verify token matches
 sudo systemctl cat rsk-server | grep RSK_TOKEN

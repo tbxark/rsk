@@ -100,7 +100,7 @@ func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx cont
 }
 
 // StartListener creates and starts a SOCKS5 server on the specified port.
-func (m *SOCKSManager) StartListener(port int, sess *yamux.Session) (net.Listener, error) {
+func (m *SOCKSManager) StartListener(port int, bindIP string, sess *yamux.Session) (net.Listener, error) {
 	conf := &socks5.Config{
 		Dial: m.createDialer(port, sess),
 	}
@@ -110,7 +110,7 @@ func (m *SOCKSManager) StartListener(port int, sess *yamux.Session) (net.Listene
 		return nil, fmt.Errorf("failed to create SOCKS5 server: %w", err)
 	}
 
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	addr := fmt.Sprintf("%s:%d", bindIP, port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind SOCKS5 listener on %s: %w", addr, err)

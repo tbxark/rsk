@@ -6,7 +6,7 @@ set -e
 
 # Configuration
 TOKEN="secure-random-token-min-16-bytes"
-SERVER_PORT=7000
+SERVER_PORT=9527
 
 echo "=== RSK Multi-Client Setup Example ==="
 echo ""
@@ -45,7 +45,7 @@ echo "Starting Client 1 (port 20001)..."
 ./rsk-client \
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
-  --ports 20001 \
+  --port 20001 \
   --name "client-1" \
   --allow-private-networks &
 CLIENT1_PID=$!
@@ -57,20 +57,20 @@ echo "Starting Client 2 (port 20002)..."
 ./rsk-client \
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
-  --ports 20002 \
+  --port 20002 \
   --name "client-2" \
   --allow-private-networks &
 CLIENT2_PID=$!
 
 sleep 1
 
-# Start third client with multiple ports
-echo "Starting Client 3 (ports 20003-20005)..."
+# Start third client
+echo "Starting Client 3 (port 20003)..."
 ./rsk-client \
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
-  --ports 20003,20004,20005 \
-  --name "client-3-multi-port" \
+  --port 20003 \
+  --name "client-3" \
   --allow-private-networks &
 CLIENT3_PID=$!
 
@@ -93,10 +93,6 @@ echo "Testing Client 3 (port 20003):"
 curl --socks5 127.0.0.1:20003 -s https://ifconfig.me
 echo ""
 
-echo "Testing Client 3 (port 20004):"
-curl --socks5 127.0.0.1:20004 -s https://ifconfig.me
-echo ""
-
 # Cleanup function
 cleanup() {
     echo ""
@@ -117,8 +113,6 @@ echo "Available SOCKS5 proxies:"
 echo "  - Client 1: 127.0.0.1:20001"
 echo "  - Client 2: 127.0.0.1:20002"
 echo "  - Client 3: 127.0.0.1:20003"
-echo "  - Client 3: 127.0.0.1:20004"
-echo "  - Client 3: 127.0.0.1:20005"
 echo ""
 echo "Press Ctrl+C to stop all services."
 echo ""

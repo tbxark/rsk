@@ -68,7 +68,7 @@ The RSK server accepts client connections and exposes SOCKS5 ports on localhost.
 
 | Flag                          | Description                                     | Default       | Required |
 |-------------------------------|-------------------------------------------------|---------------|----------|
-| `--listen`                    | Address to listen for client connections        | `:7000`       | No       |
+| `--listen`                    | Address to listen for client connections        | `:9527`       | No       |
 | `--token`                     | Authentication token (minimum 16 bytes)         | -             | **Yes**  |
 | `--bind`                      | IP address to bind SOCKS5 listeners             | `127.0.0.1`   | No       |
 | `--port-range`                | Allowed port range for SOCKS5 (format: min-max) | `20000-40000` | No       |
@@ -80,9 +80,9 @@ The RSK server accepts client connections and exposes SOCKS5 ports on localhost.
 #### Example
 
 ```bash
-# Start server on port 7000 with custom port range
+# Start server on port 9527 with custom port range
 ./rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token "my-secure-token-at-least-16-chars" \
   --bind 127.0.0.1 \
   --port-range 20000-30000
@@ -96,9 +96,9 @@ The RSK client connects to the server and handles outbound connections as an exi
 
 ```bash
 ./rsk-client \
-  --server SERVER_ADDRESS:7000 \
+  --server SERVER_ADDRESS:9527 \
   --token YOUR_SECRET_TOKEN \
-  --ports 20001
+  --port 20001
 ```
 
 #### Command-Line Options
@@ -107,7 +107,7 @@ The RSK client connects to the server and handles outbound connections as an exi
 |---------------------------|------------------------------------------------|----------|----------|
 | `--server`                | Server address (host:port)                     | -        | **Yes**  |
 | `--token`                 | Authentication token (minimum 16 bytes)        | -        | **Yes**  |
-| `--ports`                 | Comma-separated list of ports to claim         | -        | **Yes**  |
+| `--port`                  | Port to claim                                  | -        | **Yes**  |
 | `--name`                  | Client name for identification                 | hostname | No       |
 | `--dial-timeout`          | Timeout for dialing target addresses           | `15s`    | No       |
 | `--allow-private-networks`| Allow connections to private IP ranges         | `false`  | No       |
@@ -118,17 +118,10 @@ The RSK client connects to the server and handles outbound connections as an exi
 ```bash
 # Connect to server and claim port 20001
 ./rsk-client \
-  --server example.com:7000 \
+  --server example.com:9527 \
   --token "my-secure-token-at-least-16-chars" \
-  --ports 20001 \
+  --port 20001 \
   --name "exit-node-us-west"
-
-# Claim multiple ports
-./rsk-client \
-  --server example.com:7000 \
-  --token "my-secure-token-at-least-16-chars" \
-  --ports 20001,20002,20003 \
-  --name "exit-node-eu-central"
 ```
 
 ## Example Configurations
@@ -140,7 +133,7 @@ Set up a server with two clients in different geographic locations:
 **1. Start the server:**
 ```bash
 ./rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token "secure-random-token-min-16-bytes" \
   --port-range 20000-25000
 ```
@@ -148,18 +141,18 @@ Set up a server with two clients in different geographic locations:
 **2. Start first client (e.g., US West):**
 ```bash
 ./rsk-client \
-  --server your-server.com:7000 \
+  --server your-server.com:9527 \
   --token "secure-random-token-min-16-bytes" \
-  --ports 20001 \
+  --port 20001 \
   --name "us-west-exit"
 ```
 
 **3. Start second client (e.g., EU Central):**
 ```bash
 ./rsk-client \
-  --server your-server.com:7000 \
+  --server your-server.com:9527 \
   --token "secure-random-token-min-16-bytes" \
-  --ports 20002 \
+  --port 20002 \
   --name "eu-central-exit"
 ```
 
@@ -172,21 +165,6 @@ curl --socks5 127.0.0.1:20001 https://ifconfig.me
 curl --socks5 127.0.0.1:20002 https://ifconfig.me
 ```
 
-### Scenario: Load Balancing with Multiple Ports
-
-One client can claim multiple ports for load balancing:
-
-```bash
-# Client claims ports 20001-20004
-./rsk-client \
-  --server your-server.com:7000 \
-  --token "secure-random-token-min-16-bytes" \
-  --ports 20001,20002,20003,20004 \
-  --name "load-balanced-exit"
-```
-
-Applications can then distribute connections across these ports.
-
 ### Scenario: High-Security Deployment
 
 Production deployment with strict security settings:
@@ -194,7 +172,7 @@ Production deployment with strict security settings:
 **Server with enhanced security:**
 ```bash
 ./rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token "$(cat /etc/rsk/token.secret)" \
   --bind 127.0.0.1 \
   --port-range 20000-20100 \
@@ -207,9 +185,9 @@ Production deployment with strict security settings:
 **Client with network filtering:**
 ```bash
 ./rsk-client \
-  --server your-server.com:7000 \
+  --server your-server.com:9527 \
   --token "$(cat /etc/rsk/token.secret)" \
-  --ports 20001 \
+  --port 20001 \
   --name "secure-exit-node" \
   --dial-timeout 10s \
   --blocked-networks "192.0.2.0/24,198.51.100.0/24"
@@ -230,7 +208,7 @@ Relaxed settings for local development:
 **Server:**
 ```bash
 ./rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token "dev-token-16-bytes-min" \
   --max-clients 10 \
   --max-connections-per-client 20
@@ -239,9 +217,9 @@ Relaxed settings for local development:
 **Client with private network access:**
 ```bash
 ./rsk-client \
-  --server localhost:7000 \
+  --server localhost:9527 \
   --token "dev-token-16-bytes-min" \
-  --ports 20001 \
+  --port 20001 \
   --name "dev-client" \
   --allow-private-networks
 ```
@@ -255,7 +233,7 @@ Enterprise deployment across multiple regions:
 **Central Server:**
 ```bash
 ./rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token "$(openssl rand -base64 32)" \
   --bind 127.0.0.1 \
   --port-range 20000-30000 \
@@ -268,9 +246,9 @@ Enterprise deployment across multiple regions:
 **US East Client:**
 ```bash
 ./rsk-client \
-  --server central.example.com:7000 \
+  --server central.example.com:9527 \
   --token "$RSK_TOKEN" \
-  --ports 20001,20002,20003 \
+  --port 20001 \
   --name "us-east-1" \
   --dial-timeout 15s
 ```
@@ -278,9 +256,9 @@ Enterprise deployment across multiple regions:
 **EU West Client:**
 ```bash
 ./rsk-client \
-  --server central.example.com:7000 \
+  --server central.example.com:9527 \
   --token "$RSK_TOKEN" \
-  --ports 20004,20005,20006 \
+  --port 20002 \
   --name "eu-west-1" \
   --dial-timeout 15s
 ```
@@ -288,9 +266,9 @@ Enterprise deployment across multiple regions:
 **Asia Pacific Client:**
 ```bash
 ./rsk-client \
-  --server central.example.com:7000 \
+  --server central.example.com:9527 \
   --token "$RSK_TOKEN" \
-  --ports 20007,20008,20009 \
+  --port 20003 \
   --name "ap-southeast-1" \
   --dial-timeout 15s
 ```
@@ -299,8 +277,8 @@ Enterprise deployment across multiple regions:
 ```bash
 # Route through specific region
 curl --socks5 127.0.0.1:20001 https://api.example.com  # US East
-curl --socks5 127.0.0.1:20004 https://api.example.com  # EU West
-curl --socks5 127.0.0.1:20007 https://api.example.com  # Asia Pacific
+curl --socks5 127.0.0.1:20002 https://api.example.com  # EU West
+curl --socks5 127.0.0.1:20003 https://api.example.com  # Asia Pacific
 ```
 
 ## Security Best Practices
@@ -386,9 +364,9 @@ For large deployments (50+ clients):
 ```bash
 # Only enable if you need to access private networks
 ./rsk-client \
-  --server example.com:7000 \
+  --server example.com:9527 \
   --token "your-secure-token" \
-  --ports 20001 \
+  --port 20001 \
   --allow-private-networks
 ```
 
@@ -396,9 +374,9 @@ For large deployments (50+ clients):
 ```bash
 # Block additional networks (e.g., corporate networks)
 ./rsk-client \
-  --server example.com:7000 \
+  --server example.com:9527 \
   --token "your-secure-token" \
-  --ports 20001 \
+  --port 20001 \
   --blocked-networks "192.0.2.0/24,198.51.100.0/24"
 ```
 
@@ -486,12 +464,12 @@ FATAL: Token too short, minimum 16 bytes required (provided: 8, required: 16)
 
 **Port Already in Use**
 ```
-FATAL: Failed to listen on :7000: address already in use
+FATAL: Failed to listen on :9527: address already in use
 ```
 - **Solution**: Check if another process is using the port:
   ```bash
-  lsof -i :7000
-  netstat -tuln | grep 7000
+  lsof -i :9527
+  netstat -tuln | grep 9527
   ```
 - Change the listen port: `--listen :7001`
 
@@ -517,9 +495,9 @@ WARN: IP blocked due to authentication failures ip=X.X.X.X failures=5 block_dura
 - **Check network**: Verify the server address is reachable
   ```bash
   ping your-server.com
-  telnet your-server.com 7000
+  telnet your-server.com 9527
   ```
-- **Check firewall**: Ensure port 7000 (or custom listen port) is open
+- **Check firewall**: Ensure port 9527 (or custom listen port) is open
 - **Check DNS**: Verify hostname resolves correctly
 
 **Connection Limit Reached**
@@ -649,7 +627,7 @@ lsof -i -P | grep rsk-server
 ps aux | grep rsk
 
 # Monitor network traffic
-netstat -an | grep 7000
+netstat -an | grep 9527
 ```
 
 **Common Configuration Mistakes**

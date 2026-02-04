@@ -50,7 +50,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Recreate with fixed port
-	cfg.ListenAddr = "127.0.0.1:17000"
+	cfg.ListenAddr = "127.0.0.1:19527"
 	srv = NewServer(cfg, logger)
 
 	ctx, cancel = context.WithCancel(context.Background())
@@ -65,7 +65,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Test 1: First failed auth attempt should not block
-	conn1, err := net.Dial("tcp", "127.0.0.1:17000")
+	conn1, err := net.Dial("tcp", "127.0.0.1:19527")
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	_ = conn1.Close()
 
 	// Test 2: Second failed auth attempt should trigger block
-	conn2, err := net.Dial("tcp", "127.0.0.1:17000")
+	conn2, err := net.Dial("tcp", "127.0.0.1:19527")
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	_ = conn2.Close()
 
 	// Test 3: Third attempt should be blocked immediately
-	conn3, err := net.Dial("tcp", "127.0.0.1:17000")
+	conn3, err := net.Dial("tcp", "127.0.0.1:19527")
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Should be able to connect again (but will fail auth and start counting again)
-	conn4, err := net.Dial("tcp", "127.0.0.1:17000")
+	conn4, err := net.Dial("tcp", "127.0.0.1:19527")
 	if err != nil {
 		t.Fatalf("Failed to connect after block expiration: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 
 	// Test 5: After successful auth, counter should be reset
 	// Try with wrong token again - should not be blocked immediately
-	conn5, err := net.Dial("tcp", "127.0.0.1:17000")
+	conn5, err := net.Dial("tcp", "127.0.0.1:19527")
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}

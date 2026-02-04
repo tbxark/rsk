@@ -49,10 +49,10 @@ docker build -f examples/docker/Dockerfile.server -t rsk-server .
 # Run server
 docker run -d \
   --name rsk-server \
-  -p 7000:7000 \
+  -p 9527:9527 \
   -p 20000-20010:20000-20010 \
   rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token "your-secure-token" \
   --bind 0.0.0.0 \
   --port-range 20000-25000
@@ -68,9 +68,9 @@ docker build -f examples/docker/Dockerfile.client -t rsk-client .
 docker run -d \
   --name rsk-client \
   rsk-client \
-  --server your-server.com:7000 \
+  --server your-server.com:9527 \
   --token "your-secure-token" \
-  --ports 20001 \
+  --port 20001 \
   --name "docker-client"
 ```
 
@@ -98,14 +98,14 @@ secrets:
 2. **Bind to specific interface**:
 ```yaml
 ports:
-  - "127.0.0.1:7000:7000"  # Only localhost
+  - "127.0.0.1:9527:9527"  # Only localhost
   - "127.0.0.1:20000-20010:20000-20010"
 ```
 
 3. **Add health checks**:
 ```yaml
 healthcheck:
-  test: ["CMD", "nc", "-z", "localhost", "7000"]
+  test: ["CMD", "nc", "-z", "localhost", "9527"]
   interval: 30s
   timeout: 10s
   retries: 3
@@ -131,7 +131,7 @@ For production clients:
 ```bash
 docker run -d \
   --name rsk-client \
-  -e RSK_SERVER=server.example.com:7000 \
+  -e RSK_SERVER=server.example.com:9527 \
   -e RSK_TOKEN_FILE=/run/secrets/token \
   rsk-client
 ```
@@ -155,10 +155,10 @@ restart: unless-stopped
 docker run -d \
   --name rsk-server \
   --restart unless-stopped \
-  -p 0.0.0.0:7000:7000 \
+  -p 0.0.0.0:9527:9527 \
   -p 127.0.0.1:20000-20100:20000-20100 \
   rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token "$(cat /run/secrets/rsk-token)" \
   --bind 0.0.0.0 \
   --port-range 20000-30000
@@ -172,9 +172,9 @@ docker run -d \
   --name rsk-client \
   --restart unless-stopped \
   rsk-client \
-  --server server-host-a.example.com:7000 \
+  --server server-host-a.example.com:9527 \
   --token "$(cat /run/secrets/rsk-token)" \
-  --ports 20001 \
+  --port 20001 \
   --name "exit-node-b"
 
 # Client on Host C
@@ -182,9 +182,9 @@ docker run -d \
   --name rsk-client \
   --restart unless-stopped \
   rsk-client \
-  --server server-host-a.example.com:7000 \
+  --server server-host-a.example.com:9527 \
   --token "$(cat /run/secrets/rsk-token)" \
-  --ports 20002 \
+  --port 20002 \
   --name "exit-node-c"
 ```
 
@@ -214,7 +214,7 @@ spec:
         image: rsk-server:latest
         args:
         - --listen
-        - ":7000"
+        - ":9527"
         - --token
         - "$(RSK_TOKEN)"
         - --bind
@@ -228,7 +228,7 @@ spec:
               name: rsk-secret
               key: token
         ports:
-        - containerPort: 7000
+        - containerPort: 9527
           name: control
         - containerPort: 20000
           name: socks-start
@@ -241,8 +241,8 @@ spec:
   selector:
     app: rsk-server
   ports:
-  - port: 7000
-    targetPort: 7000
+  - port: 9527
+    targetPort: 9527
     name: control
   type: LoadBalancer
 ```
@@ -269,10 +269,10 @@ spec:
         image: rsk-client:latest
         args:
         - --server
-        - "rsk-server:7000"
+        - "rsk-server:9527"
         - --token
         - "$(RSK_TOKEN)"
-        - --ports
+        - --port
         - "20001"
         - --name
         - "$(POD_NAME)"
@@ -309,7 +309,7 @@ docker inspect rsk-server
 ```bash
 # Test from client container
 docker exec rsk-client-1 ping rsk-server
-docker exec rsk-client-1 nc -zv rsk-server 7000
+docker exec rsk-client-1 nc -zv rsk-server 9527
 
 # Check network
 docker network inspect rsk-network
@@ -319,11 +319,11 @@ docker network inspect rsk-network
 
 ```bash
 # Check what's using the port on host
-sudo lsof -i :7000
+sudo lsof -i :9527
 sudo lsof -i :20001
 
 # Use different host ports
-docker run -p 7001:7000 ...
+docker run -p 7001:9527 ...
 ```
 
 ## Security Considerations

@@ -6,7 +6,7 @@ set -e
 
 # Configuration
 TOKEN="secure-random-token-min-16-bytes"
-SERVER_PORT=7000
+SERVER_PORT=9527
 CLIENT_PORT=20001
 
 echo "=== RSK Basic Setup Example ==="
@@ -47,7 +47,7 @@ echo "Starting RSK client..."
 ./rsk-client \
   --server "localhost:$SERVER_PORT" \
   --token "$TOKEN" \
-  --ports "$CLIENT_PORT" \
+  --port "$CLIENT_PORT" \
   --name "example-client" \
   --allow-private-networks &
 CLIENT_PID=$!

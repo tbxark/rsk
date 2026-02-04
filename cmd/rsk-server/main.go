@@ -83,7 +83,7 @@ func parseFlags() (*server.Config, error) {
 		showVersion       bool
 	)
 
-	pflag.StringVar(&listenAddr, "listen", ":7000", "Address to listen for client connections")
+	pflag.StringVar(&listenAddr, "listen", ":9527", "Address to listen for client connections")
 	pflag.StringVar(&token, "token", "", "Authentication token (required)")
 	pflag.StringVar(&bindIP, "bind", "127.0.0.1", "IP address to bind SOCKS5 listeners")
 	pflag.StringVar(&portRange, "port-range", "20000-40000", "Allowed port range for SOCKS5 listeners (format: min-max)")

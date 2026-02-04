@@ -8,13 +8,13 @@ services:
     container_name: rsk-server
     restart: unless-stopped
     ports:
-      - "7000:7000"
+      - "9527:9527"
       - "20000-20010:20000-20010"
     environment:
       - RSK_TOKEN=${RSK_TOKEN:-change-me-to-secure-token}
     command:
       - --listen
-      - ":7000"
+      - ":9527"
       - --token
       - "${RSK_TOKEN:-change-me-to-secure-token}"
       - --bind
@@ -49,10 +49,10 @@ services:
       - RSK_TOKEN=${RSK_TOKEN:-change-me-to-secure-token}
     command:
       - --server
-      - "rsk-server:7000"
+      - "rsk-server:9527"
       - --token
       - "${RSK_TOKEN:-change-me-to-secure-token}"
-      - --ports
+      - --port
       - "20001"
       - --name
       - "client-1"
@@ -77,11 +77,11 @@ services:
       - RSK_TOKEN=${RSK_TOKEN:-change-me-to-secure-token}
     command:
       - --server
-      - "rsk-server:7000"
+      - "rsk-server:9527"
       - --token
       - "${RSK_TOKEN:-change-me-to-secure-token}"
-      - --ports
-      - "20002,20003"
+      - --port
+      - "20002"
       - --name
       - "client-2"
       - --allow-private-networks

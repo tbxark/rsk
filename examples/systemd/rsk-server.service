@@ -12,7 +12,7 @@ WorkingDirectory=/opt/rsk
 # Server configuration
 Environment="RSK_TOKEN=CHANGE_ME_TO_SECURE_TOKEN"
 ExecStart=/opt/rsk/rsk-server \
-  --listen :7000 \
+  --listen :9527 \
   --token ${RSK_TOKEN} \
   --bind 127.0.0.1 \
   --port-range 20000-40000 \

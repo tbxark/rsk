@@ -94,8 +94,7 @@ func (c *Client) connect() (*yamux.Session, error) {
 		return nil, err
 	}
 
-	ports := make([]uint16, 1)
-	ports[0] = uint16(c.Config.Port)
+	ports := []uint16{uint16(c.Config.Port)}
 
 	hello := proto.Hello{
 		Magic:   [4]byte{'R', 'S', 'K', '1'},

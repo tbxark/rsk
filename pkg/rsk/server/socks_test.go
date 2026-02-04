@@ -587,7 +587,7 @@ func TestSOCKSManager_StartListener(t *testing.T) {
 	defer func() { _ = sess.Close() }()
 
 	// Start SOCKS5 listener
-	socksListener, err := socksManager.StartListener(port, sess)
+	socksListener, err := socksManager.StartListener(port, "127.0.0.1", sess)
 	require.NoError(t, err)
 	require.NotNil(t, socksListener)
 	defer func() { _ = socksListener.Close() }()

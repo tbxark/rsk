@@ -28,11 +28,11 @@ WORKDIR /app
 COPY --from=builder /build/rsk-server .
 
 # Expose default port
-EXPOSE 7000
+EXPOSE 9527
 
 # Run as non-root user
 RUN adduser -D -u 1000 rsk
 USER rsk
 
 ENTRYPOINT ["./rsk-server"]
-CMD ["--listen", ":7000", "--bind", "0.0.0.0", "--port-range", "20000-40000", "--max-clients", "100", "--max-auth-failures", "5", "--auth-block-duration", "5m", "--max-connections-per-client", "100"]
+CMD ["--listen", ":9527", "--bind", "0.0.0.0", "--port-range", "20000-40000", "--max-clients", "100", "--max-auth-failures", "5", "--auth-block-duration", "5m", "--max-connections-per-client", "100"]

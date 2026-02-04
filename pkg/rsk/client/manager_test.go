@@ -186,7 +186,7 @@ func TestManagerValidation(t *testing.T) {
 				Config: &Config{
 					ServerAddr:  "localhost:8080",
 					Token:       []byte("test-token-16-bytes-minimum"),
-					Port:        70000,
+					Port:        95270,
 					Name:        "test",
 					DialTimeout: 10 * time.Second,
 				},
