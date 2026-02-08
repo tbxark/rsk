@@ -9,6 +9,7 @@ import (
 type AddressFilter struct {
 	allowPrivate bool
 	blockedNets  []*net.IPNet
+	lookupIP     func(host string) ([]net.IP, error)
 }
 
 // NewAddressFilter creates a new address filter with the specified configuration.
@@ -17,6 +18,7 @@ func NewAddressFilter(allowPrivate bool, blockedCIDRs []string) (*AddressFilter,
 	af := &AddressFilter{
 		allowPrivate: allowPrivate,
 		blockedNets:  make([]*net.IPNet, 0, len(blockedCIDRs)),
+		lookupIP:     net.LookupIP,
 	}
 
 	// Parse custom blocked networks
@@ -43,18 +45,28 @@ func (af *AddressFilter) IsAllowed(addr string) error {
 	// Parse the IP address
 	ip := net.ParseIP(host)
 	if ip == nil {
-		// If not an IP, try to resolve it
-		ips, err := net.LookupIP(host)
+		// If not an IP, resolve and validate all returned IPs (fail-closed).
+		ips, err := af.lookupIP(host)
 		if err != nil {
 			return fmt.Errorf("failed to resolve hostname: %w", err)
 		}
 		if len(ips) == 0 {
 			return fmt.Errorf("hostname resolved to no addresses")
 		}
-		// Use the first resolved IP
-		ip = ips[0]
+
+		for _, resolvedIP := range ips {
+			if err := af.validateIP(resolvedIP); err != nil {
+				return fmt.Errorf("hostname %q resolved to blocked IP %s: %w", host, resolvedIP.String(), err)
+			}
+		}
+
+		return nil
 	}
 
+	return af.validateIP(ip)
+}
+
+func (af *AddressFilter) validateIP(ip net.IP) error {
 	// Check loopback addresses
 	if af.isLoopback(ip) {
 		return fmt.Errorf("loopback addresses are not allowed")

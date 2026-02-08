@@ -17,6 +17,7 @@ import (
 type SOCKSManager struct {
 	registry *Registry    // Port registry
 	logger   *slog.Logger // Logger instance
+	bindIP   string       // IP address to bind SOCKS5 listeners
 }
 
 // connCountingStream wraps a net.Conn to decrement connection count on close
@@ -41,10 +42,15 @@ func (c *connCountingStream) Close() error {
 }
 
 // NewSOCKSManager creates a new SOCKSManager instance
-func NewSOCKSManager(registry *Registry, logger *slog.Logger) *SOCKSManager {
+func NewSOCKSManager(registry *Registry, logger *slog.Logger, bindIP string) *SOCKSManager {
+	if bindIP == "" {
+		bindIP = "127.0.0.1"
+	}
+
 	return &SOCKSManager{
 		registry: registry,
 		logger:   logger,
+		bindIP:   bindIP,
 	}
 }
 
@@ -100,7 +106,7 @@ func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx cont
 }
 
 // StartListener creates and starts a SOCKS5 server on the specified port.
-func (m *SOCKSManager) StartListener(port int, bindIP string, sess *yamux.Session) (net.Listener, error) {
+func (m *SOCKSManager) StartListener(port int, sess *yamux.Session) (net.Listener, error) {
 	conf := &socks5.Config{
 		Dial: m.createDialer(port, sess),
 	}
@@ -110,20 +116,20 @@ func (m *SOCKSManager) StartListener(port int, bindIP string, sess *yamux.Sessio
 		return nil, fmt.Errorf("failed to create SOCKS5 server: %w", err)
 	}
 
-	addr := fmt.Sprintf("%s:%d", bindIP, port)
+	addr := fmt.Sprintf("%s:%d", m.bindIP, port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind SOCKS5 listener on %s: %w", addr, err)
 	}
 
 	go func() {
-		m.logger.Info("SOCKS5 listener started", "port", port)
+		m.logger.Info("SOCKS5 listener started", "port", port, "addr", addr)
 		if err := server.Serve(listener); err != nil {
 			if opErr, ok := err.(*net.OpError); !ok || opErr.Err.Error() != "use of closed network connection" {
 				m.logger.Error("SOCKS5 server error", "port", port, "error", err)
 			}
 		}
-		m.logger.Info("SOCKS5 listener stopped", "port", port)
+		m.logger.Info("SOCKS5 listener stopped", "port", port, "addr", addr)
 	}()
 
 	return listener, nil

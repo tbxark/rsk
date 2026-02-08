@@ -18,7 +18,7 @@ import (
 func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
-	socksManager := NewSOCKSManager(registry, logger)
+	socksManager := NewSOCKSManager(registry, logger, "127.0.0.1")
 
 	port := 20001
 	maxConns := int32(3)
@@ -64,7 +64,7 @@ func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 func TestSOCKSManager_ConnectionLimit(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
-	socksManager := NewSOCKSManager(registry, logger)
+	socksManager := NewSOCKSManager(registry, logger, "127.0.0.1")
 
 	port := 20001
 	maxConns := int32(2)
@@ -387,7 +387,7 @@ func TestSOCKSManager_ConnectionLifecycle(t *testing.T) {
 func TestSOCKSManager_ErrorHandling(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
-	socksManager := NewSOCKSManager(registry, logger)
+	socksManager := NewSOCKSManager(registry, logger, "127.0.0.1")
 
 	port := 20001
 	maxConns := int32(1)
@@ -433,7 +433,7 @@ func TestSOCKSManager_ErrorHandling(t *testing.T) {
 func TestSOCKSManager_PortNotFound(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
-	socksManager := NewSOCKSManager(registry, logger)
+	socksManager := NewSOCKSManager(registry, logger, "127.0.0.1")
 
 	port := 20001
 
@@ -553,16 +553,17 @@ func TestNewSOCKSManager(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	registry := NewRegistry()
 
-	manager := NewSOCKSManager(registry, logger)
+	manager := NewSOCKSManager(registry, logger, "0.0.0.0")
 
 	assert.NotNil(t, manager)
 	assert.Equal(t, registry, manager.registry)
 	assert.Equal(t, logger, manager.logger)
+	assert.Equal(t, "0.0.0.0", manager.bindIP)
 }
 
 func TestSOCKSManager_StartListener(t *testing.T) {
 	registry := NewRegistry()
-	socksManager := NewSOCKSManager(registry, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	socksManager := NewSOCKSManager(registry, slog.New(slog.NewTextHandler(io.Discard, nil)), "127.0.0.1")
 
 	// Find an available port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

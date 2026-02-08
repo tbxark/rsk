@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -10,6 +11,18 @@ import (
 
 	"github.com/tbxark/rsk/pkg/rsk/proto"
 )
+
+func getFreePort(t *testing.T) int {
+	t.Helper()
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to get free port: %v", err)
+	}
+	defer func() { _ = l.Close() }()
+
+	return l.Addr().(*net.TCPAddr).Port
+}
 
 func TestServerRateLimiterIntegration(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -178,4 +191,99 @@ func TestServerRateLimiterIntegration(t *testing.T) {
 	// Cleanup
 	cancel()
 	time.Sleep(50 * time.Millisecond)
+}
+
+func TestHandleClientConnection_PartialListenerFailureCleansUp(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	token := []byte("test-token-12345")
+	registry := NewRegistry()
+	connLimiter := NewConnectionLimiter(10)
+	rateLimiter := NewRateLimiter(5, time.Second)
+	defer rateLimiter.Close()
+	socksManager := NewSOCKSManager(registry, logger, "127.0.0.1")
+	if !connLimiter.Acquire() {
+		t.Fatal("failed to acquire connection limiter slot for test setup")
+	}
+
+	port1 := getFreePort(t)
+	occupiedListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to occupy test port: %v", err)
+	}
+	defer func() { _ = occupiedListener.Close() }()
+	port2 := occupiedListener.Addr().(*net.TCPAddr).Port
+
+	serverListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create test server listener: %v", err)
+	}
+	defer func() { _ = serverListener.Close() }()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := serverListener.Accept()
+		if err != nil {
+			return
+		}
+		handleClientConnection(
+			conn,
+			connLimiter,
+			rateLimiter,
+			token,
+			1,
+			65535,
+			100,
+			registry,
+			socksManager,
+			logger,
+		)
+	}()
+
+	clientConn, err := net.Dial("tcp", serverListener.Addr().String())
+	if err != nil {
+		t.Fatalf("failed to connect to test server: %v", err)
+	}
+
+	hello := proto.Hello{
+		Magic:   [4]byte{'R', 'S', 'K', '1'},
+		Version: proto.Version,
+		Token:   token,
+		Name:    "cleanup-test-client",
+		Ports:   []uint16{uint16(port1), uint16(port2)},
+	}
+
+	if err := proto.WriteHello(clientConn, hello); err != nil {
+		t.Fatalf("failed to write HELLO: %v", err)
+	}
+
+	resp, err := proto.ReadHelloResp(clientConn)
+	if err != nil {
+		t.Fatalf("failed to read HELLO_RESP: %v", err)
+	}
+	if resp.Status != proto.StatusOK {
+		t.Fatalf("expected status OK, got %d", resp.Status)
+	}
+	_ = clientConn.Close()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("handleClientConnection did not exit in time")
+	}
+
+	registry.mu.RLock()
+	_, exists1 := registry.slots[port1]
+	_, exists2 := registry.slots[port2]
+	registry.mu.RUnlock()
+	if exists1 || exists2 {
+		t.Fatalf("expected both ports to be cleaned up, got slot states port1=%v port2=%v", exists1, exists2)
+	}
+
+	// Port1 was successfully started first; it must be released after rollback.
+	rebind, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port1))
+	if err != nil {
+		t.Fatalf("expected port1 to be released after rollback: %v", err)
+	}
+	_ = rebind.Close()
 }

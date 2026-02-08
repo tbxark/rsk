@@ -2,6 +2,7 @@ package server
 
 import (
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/yamux"
@@ -75,6 +76,45 @@ func TestReservePorts_ReleaseIdempotent(t *testing.T) {
 	// Should not panic or cause issues
 	_, exists := r.slots[20001]
 	assert.False(t, exists)
+}
+
+func TestReservePorts_ConcurrentSameSet(t *testing.T) {
+	r := NewRegistry()
+	ports := []int{20001, 20002}
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	successes := make(chan func(), goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+
+			release, err := r.ReservePorts(ports)
+			if err == nil {
+				successes <- release
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(successes)
+
+	var releases []func()
+	for release := range successes {
+		releases = append(releases, release)
+	}
+
+	// Exactly one caller should be able to reserve the same port set concurrently.
+	assert.Equal(t, 1, len(releases))
+
+	for _, release := range releases {
+		release()
+	}
 }
 
 func TestBindSession(t *testing.T) {

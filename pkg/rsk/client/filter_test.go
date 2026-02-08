@@ -276,6 +276,47 @@ func TestAddressFilter_IsAllowed(t *testing.T) {
 	}
 }
 
+func TestAddressFilter_IsAllowed_ResolvedIPsFailClosed(t *testing.T) {
+	af, err := NewAddressFilter(false, nil)
+	if err != nil {
+		t.Fatalf("NewAddressFilter() failed: %v", err)
+	}
+
+	af.lookupIP = func(host string) ([]net.IP, error) {
+		return []net.IP{
+			net.ParseIP("8.8.8.8"),
+			net.ParseIP("10.0.0.1"),
+		}, nil
+	}
+
+	err = af.IsAllowed("example.com:443")
+	if err == nil {
+		t.Fatal("expected hostname to be blocked when any resolved IP is blocked")
+	}
+	if !contains(err.Error(), "blocked IP 10.0.0.1") {
+		t.Fatalf("expected error to include blocked IP, got: %v", err)
+	}
+}
+
+func TestAddressFilter_IsAllowed_ResolvedIPsAllAllowed(t *testing.T) {
+	af, err := NewAddressFilter(false, nil)
+	if err != nil {
+		t.Fatalf("NewAddressFilter() failed: %v", err)
+	}
+
+	af.lookupIP = func(host string) ([]net.IP, error) {
+		return []net.IP{
+			net.ParseIP("8.8.8.8"),
+			net.ParseIP("1.1.1.1"),
+		}, nil
+	}
+
+	err = af.IsAllowed("example.com:443")
+	if err != nil {
+		t.Fatalf("expected hostname to be allowed, got: %v", err)
+	}
+}
+
 func TestAddressFilter_isLoopback(t *testing.T) {
 	af := &AddressFilter{}
 

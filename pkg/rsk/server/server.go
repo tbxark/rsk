@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,7 +26,6 @@ func handleClientConnection(
 	connLimiter *ConnectionLimiter,
 	rateLimiter *IPRateLimiter,
 	token []byte,
-	bindIP string,
 	portMin, portMax int,
 	maxConnsPerClient int,
 	registry *Registry,
@@ -119,43 +117,19 @@ func handleClientConnection(
 		ports[i] = int(p)
 	}
 
-	_, err = registry.ReservePorts(ports)
+	releaseFunc, err := registry.ReservePorts(ports)
 	if err != nil {
 		logger.Warn("Port reservation failed", "error", err)
 		sendErrorResponse(conn, proto.StatusPortInUse, "One or more ports are already in use", logger)
 		return
 	}
 
-	var cleanupOnce sync.Once
-	tcpListeners := make(map[int]net.Listener)
-	socksListeners := make(map[int]net.Listener)
-	cleanup := func() {
-		cleanupOnce.Do(func() {
-			for _, listener := range socksListeners {
-				_ = listener.Close()
-			}
-			for _, listener := range tcpListeners {
-				_ = listener.Close()
-			}
-			registry.ReleasePorts(ports)
-		})
-	}
-	defer cleanup()
-
-	for _, port := range ports {
-		addr := fmt.Sprintf("%s:%d", bindIP, port)
-		listener, err := net.Listen("tcp", addr)
-		if err != nil {
-			logger.Warn("Failed to bind port", "port", port, "error", err)
-			cleanup()
-			sendErrorResponse(conn, proto.StatusPortInUse,
-				fmt.Sprintf("Failed to bind port %d", port), logger)
-			return
+	portsReserved := true
+	defer func() {
+		if portsReserved {
+			releaseFunc()
 		}
-		tcpListeners[port] = listener
-	}
-
-	logger.Info("Ports bound successfully", "ports", ports)
+	}()
 
 	resp := proto.HelloResp{
 		Version:       proto.Version,
@@ -166,13 +140,11 @@ func handleClientConnection(
 
 	if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		logger.Error("Failed to set write deadline", "error", err)
-		cleanup()
 		return
 	}
 
 	if err := proto.WriteHelloResp(conn, resp); err != nil {
 		logger.Error("Failed to write HELLO_RESP", "error", err)
-		cleanup()
 		return
 	}
 
@@ -180,7 +152,6 @@ func handleClientConnection(
 
 	if err := common.ClearDeadline(conn); err != nil {
 		logger.Error("Failed to clear deadline", "error", err)
-		cleanup()
 		return
 	}
 
@@ -192,7 +163,6 @@ func handleClientConnection(
 	session, err := yamux.Server(conn, yamuxConfig)
 	if err != nil {
 		logger.Error("Failed to create yamux session", "error", err)
-		cleanup()
 		return
 	}
 
@@ -204,37 +174,69 @@ func handleClientConnection(
 		ClientID:   clientID,
 	}
 
-	for _, port := range ports {
-		if tcpListener, ok := tcpListeners[port]; ok {
-			_ = tcpListener.Close()
-			delete(tcpListeners, port)
+	startedListeners := make(map[int]net.Listener)
+	cleanupStartedListeners := func() {
+		for port, listener := range startedListeners {
+			_ = listener.Close()
+			delete(startedListeners, port)
 		}
+	}
 
-		socksListener, err := socksManager.StartListener(port, bindIP, session)
+	hasBoundSession := false
+
+	for _, port := range ports {
+		socksListener, err := socksManager.StartListener(port, session)
 		if err != nil {
 			logger.Error("Failed to start SOCKS5 listener", "port", port, "error", err)
+			cleanupStartedListeners()
+			if hasBoundSession {
+				registry.ReleasePorts(ports)
+				portsReserved = false
+			}
 			_ = session.Close()
-			cleanup()
 			return
 		}
-		socksListeners[port] = socksListener
+		startedListeners[port] = socksListener
 
 		if err := registry.BindSession(port, session, socksListener, clientMeta, int32(maxConnsPerClient)); err != nil {
 			logger.Error("Failed to bind session to port", "port", port, "error", err)
 			_ = session.Close()
 			_ = socksListener.Close()
-			delete(socksListeners, port)
-			cleanup()
+			delete(startedListeners, port)
+			cleanupStartedListeners()
+			if hasBoundSession {
+				registry.ReleasePorts(ports)
+				portsReserved = false
+			}
 			return
 		}
+
+		delete(startedListeners, port)
+		hasBoundSession = true
 	}
+
+	portsReserved = false
 
 	logger.Info("Client session established",
 		"client_id", clientID,
 		"client_name", hello.Name,
-		"ports", ports)
+		"ports", ports,
+		"bind_ip", socksManager.bindIP)
 
 	// Ensure cleanup happens even if session closes immediately
+	defer func() {
+		logger.Info("Session closed, starting cleanup",
+			"client_id", clientID,
+			"client_name", hello.Name)
+
+		registry.ReleasePorts(ports)
+
+		logger.Info("Cleanup completed",
+			"client_id", clientID,
+			"client_name", hello.Name,
+			"ports", ports)
+	}()
+
 	<-session.CloseChan()
 }
 
@@ -288,7 +290,7 @@ func (s *Server) Start(ctx context.Context) error {
 		"max_auth_failures", s.config.MaxAuthFailures,
 		"auth_block_duration", s.config.AuthBlockDuration)
 
-	socksManager := NewSOCKSManager(s.registry, s.logger)
+	socksManager := NewSOCKSManager(s.registry, s.logger, s.config.BindIP)
 
 	done := make(chan struct{})
 	defer close(done)
@@ -331,7 +333,6 @@ func (s *Server) Start(ctx context.Context) error {
 			connLimiter,
 			rateLimiter,
 			s.config.Token,
-			s.config.BindIP,
 			s.config.PortMin,
 			s.config.PortMax,
 			s.config.MaxConnsPerClient,

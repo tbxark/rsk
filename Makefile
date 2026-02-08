@@ -60,6 +60,14 @@ install:
 test:
 	go test -v -race -cover ./...
 
+.PHONY: test-unit
+test-unit:
+	go test -short ./...
+
+.PHONY: test-e2e
+test-e2e:
+	go test -v ./test/e2e
+
 .PHONY: test-coverage
 test-coverage:
 	go test -v -race -coverprofile=coverage.out ./...
@@ -99,6 +107,8 @@ help:
 	@echo "  build-all        - Build for all platforms"
 	@echo "  install          - Install binaries to GOPATH/bin"
 	@echo "  test             - Run tests with race detector"
+	@echo "  test-unit        - Run unit/short tests (skips e2e with -short)"
+	@echo "  test-e2e         - Run end-to-end integration tests"
 	@echo "  test-coverage    - Run tests with coverage report"
 	@echo "  clean            - Remove build artifacts"
 	@echo "  format           - Format code and tidy dependencies"

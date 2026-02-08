@@ -107,11 +107,13 @@ The RSK client connects to the server and handles outbound connections as an exi
 |---------------------------|------------------------------------------------|----------|----------|
 | `--server`                | Server address (host:port)                     | -        | **Yes**  |
 | `--token`                 | Authentication token (minimum 16 bytes)        | -        | **Yes**  |
-| `--port`                  | Port to claim                                  | -        | **Yes**  |
+| `--port`                  | Single port to claim                           | -        | **Yes**  |
 | `--name`                  | Client name for identification                 | hostname | No       |
 | `--dial-timeout`          | Timeout for dialing target addresses           | `15s`    | No       |
 | `--allow-private-networks`| Allow connections to private IP ranges         | `false`  | No       |
 | `--blocked-networks`      | Additional CIDR blocks to block (comma-separated) | -     | No       |
+
+`rsk-client` currently claims exactly one SOCKS port per process. To expose multiple ports, run multiple client instances.
 
 #### Example
 
@@ -122,6 +124,13 @@ The RSK client connects to the server and handles outbound connections as an exi
   --token "my-secure-token-at-least-16-chars" \
   --port 20001 \
   --name "exit-node-us-west"
+
+# Start another client for a second exit node
+./rsk-client \
+  --server example.com:9527 \
+  --token "my-secure-token-at-least-16-chars" \
+  --port 20002 \
+  --name "exit-node-eu-central"
 ```
 
 ## Example Configurations
@@ -165,6 +174,15 @@ curl --socks5 127.0.0.1:20001 https://ifconfig.me
 curl --socks5 127.0.0.1:20002 https://ifconfig.me
 ```
 
+### Scenario: Multiple Clients for Load Distribution
+
+Use multiple clients, each claiming one port, to distribute traffic across exit nodes:
+
+```bash
+./rsk-client --server your-server.com:9527 --token "secure-random-token-min-16-bytes" --port 20001 --name "lb-node-1"
+./rsk-client --server your-server.com:9527 --token "secure-random-token-min-16-bytes" --port 20002 --name "lb-node-2"
+./rsk-client --server your-server.com:9527 --token "secure-random-token-min-16-bytes" --port 20003 --name "lb-node-3"
+```
 ### Scenario: High-Security Deployment
 
 Production deployment with strict security settings:
@@ -638,13 +656,6 @@ netstat -an | grep 9527
 5. Insufficient connection limits for workload
 6. Client trying to access blocked networks without proper flags
 
-## Migration Guide
-
-If you're upgrading from a previous version, please see the [Migration Guide](MIGRATION.md) for important information about:
-- Token length requirements (breaking change)
-- New security features and default behaviors
-- Recommended configurations for different deployment sizes
-- Monitoring and troubleshooting tips
 
 ## License
 
@@ -657,6 +668,7 @@ Contributions are welcome! Please ensure:
 1. All tests pass: `go test ./...`
 2. Code is formatted: `go fmt ./...`
 3. No race conditions: `go test -race ./...`
+4. End-to-end tests pass: `go test -v ./test/e2e`
 
 ## Support
 
