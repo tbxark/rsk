@@ -8,6 +8,7 @@ import (
 
 	"github.com/tbxark/rsk/pkg/rsk/client"
 	"github.com/tbxark/rsk/pkg/rsk/server"
+	"golang.org/x/net/proxy"
 )
 
 func TestAcceptance_InvalidTokenRejected(t *testing.T) {
@@ -105,6 +106,55 @@ func TestAcceptance_PortConflictRejected(t *testing.T) {
 	var hsErr *client.HandshakeError
 	if !errors.As(err, &hsErr) || !hsErr.IsPortInUse() {
 		t.Fatalf("expected PORT_IN_USE handshake error, got: %v", err)
+	}
+}
+
+func TestAcceptance_BlockedTargetFailsSOCKSHandshake(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skip e2e in -short mode")
+	}
+
+	token := []byte("test-token-blocked-12")
+	serverPort := getFreePort(t)
+	socksPort := getFreePort(t)
+
+	srv := startServer(t, &server.Config{
+		ListenAddr:        "127.0.0.1:" + itoa(serverPort),
+		Token:             token,
+		BindIP:            "127.0.0.1",
+		PortMin:           1,
+		PortMax:           65535,
+		MaxClients:        10,
+		MaxAuthFailures:   5,
+		AuthBlockDuration: time.Second,
+		MaxConnsPerClient: 20,
+	})
+	t.Cleanup(func() { stopServiceAndAssertClean(t, srv, "server") })
+
+	cli := startClient(t, &client.Config{
+		ServerAddr:           "127.0.0.1:" + itoa(serverPort),
+		Token:                token,
+		Port:                 socksPort,
+		Name:                 "blocked-target-client",
+		DialTimeout:          time.Second,
+		AllowPrivateNetworks: false,
+	})
+	t.Cleanup(func() { stopServiceAndAssertClean(t, cli, "client") })
+
+	socksAddr := "127.0.0.1:" + itoa(socksPort)
+	if err := waitPortOpen(socksAddr, 3*time.Second); err != nil {
+		t.Fatalf("client socks port not open: %v", err)
+	}
+
+	dialer, err := proxy.SOCKS5("tcp", socksAddr, nil, proxy.Direct)
+	if err != nil {
+		t.Fatalf("failed to create SOCKS5 dialer: %v", err)
+	}
+
+	conn, err := dialer.Dial("tcp", "127.0.0.1:1")
+	if err == nil {
+		_ = conn.Close()
+		t.Fatal("expected blocked target to fail during SOCKS handshake")
 	}
 }
 

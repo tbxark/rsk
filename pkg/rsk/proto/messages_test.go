@@ -15,7 +15,7 @@ func TestHelloRoundTrip(t *testing.T) {
 			name: "valid hello with single port",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte("test-token-123"),
 				Ports:   []uint16{20000},
 				Name:    "test-client",
@@ -26,7 +26,7 @@ func TestHelloRoundTrip(t *testing.T) {
 			name: "valid hello with multiple ports",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte("another-token"),
 				Ports:   []uint16{20000, 20001, 20002},
 				Name:    "multi-port-client",
@@ -37,7 +37,7 @@ func TestHelloRoundTrip(t *testing.T) {
 			name: "valid hello with empty name",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte("token"),
 				Ports:   []uint16{30000},
 				Name:    "",
@@ -48,7 +48,7 @@ func TestHelloRoundTrip(t *testing.T) {
 			name: "valid hello with max ports",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte("token"),
 				Ports:   []uint16{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
 				Name:    "max-ports",
@@ -110,7 +110,7 @@ func TestHelloRespRoundTrip(t *testing.T) {
 		{
 			name: "valid OK response",
 			helloResp: HelloResp{
-				Version:       0x01,
+				Version:       Version,
 				Status:        StatusOK,
 				AcceptedPorts: []uint16{20000, 20001},
 				Message:       "success",
@@ -120,7 +120,7 @@ func TestHelloRespRoundTrip(t *testing.T) {
 		{
 			name: "valid error response with no ports",
 			helloResp: HelloResp{
-				Version:       0x01,
+				Version:       Version,
 				Status:        StatusAuthFail,
 				AcceptedPorts: []uint16{},
 				Message:       "authentication failed",
@@ -130,7 +130,7 @@ func TestHelloRespRoundTrip(t *testing.T) {
 		{
 			name: "valid response with empty message",
 			helloResp: HelloResp{
-				Version:       0x01,
+				Version:       Version,
 				Status:        StatusOK,
 				AcceptedPorts: []uint16{30000},
 				Message:       "",
@@ -235,6 +235,79 @@ func TestConnectReqRoundTrip(t *testing.T) {
 	}
 }
 
+func TestConnectRespRoundTrip(t *testing.T) {
+	tests := []struct {
+		name string
+		resp ConnectResp
+	}{
+		{
+			name: "valid OK response",
+			resp: ConnectResp{Version: Version, Status: ConnectStatusOK},
+		},
+		{
+			name: "valid blocked response",
+			resp: ConnectResp{Version: Version, Status: ConnectStatusBlocked, Message: "blocked"},
+		},
+		{
+			name: "valid dial failed response",
+			resp: ConnectResp{Version: Version, Status: ConnectStatusDialFailed, Message: "connection refused"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			if err := WriteConnectResp(&buf, tt.resp); err != nil {
+				t.Fatalf("WriteConnectResp() error = %v", err)
+			}
+
+			got, err := ReadConnectResp(&buf)
+			if err != nil {
+				t.Fatalf("ReadConnectResp() error = %v", err)
+			}
+
+			if got != tt.resp {
+				t.Fatalf("ConnectResp mismatch: got %+v, want %+v", got, tt.resp)
+			}
+		})
+	}
+}
+
+func TestConnectRespValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		resp    ConnectResp
+		wantErr error
+	}{
+		{
+			name:    "invalid version",
+			resp:    ConnectResp{Version: VersionV1, Status: ConnectStatusOK},
+			wantErr: ErrInvalidVersion,
+		},
+		{
+			name:    "invalid status",
+			resp:    ConnectResp{Version: Version, Status: 0xff},
+			wantErr: ErrInvalidConnectStatus,
+		},
+		{
+			name:    "message too long",
+			resp:    ConnectResp{Version: Version, Status: ConnectStatusDialFailed, Message: string(bytes.Repeat([]byte{'x'}, MaxMessageLen+1))},
+			wantErr: ErrInvalidMessageLen,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := WriteConnectResp(&buf, tt.resp)
+			if err != tt.wantErr {
+				t.Fatalf("WriteConnectResp() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestHelloValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -245,7 +318,7 @@ func TestHelloValidation(t *testing.T) {
 			name: "invalid magic",
 			hello: Hello{
 				Magic:   [4]byte{'B', 'A', 'D', '!'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte("token"),
 				Ports:   []uint16{20000},
 				Name:    "test",
@@ -256,7 +329,7 @@ func TestHelloValidation(t *testing.T) {
 			name: "invalid version",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x02,
+				Version: VersionV1,
 				Token:   []byte("token"),
 				Ports:   []uint16{20000},
 				Name:    "test",
@@ -267,7 +340,7 @@ func TestHelloValidation(t *testing.T) {
 			name: "token too short",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte{},
 				Ports:   []uint16{20000},
 				Name:    "test",
@@ -278,7 +351,7 @@ func TestHelloValidation(t *testing.T) {
 			name: "no ports",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte("token"),
 				Ports:   []uint16{},
 				Name:    "test",
@@ -289,7 +362,7 @@ func TestHelloValidation(t *testing.T) {
 			name: "too many ports",
 			hello: Hello{
 				Magic:   [4]byte{'R', 'S', 'K', '1'},
-				Version: 0x01,
+				Version: Version,
 				Token:   []byte("token"),
 				Ports:   []uint16{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
 				Name:    "test",

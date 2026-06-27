@@ -8,7 +8,9 @@ import (
 
 const (
 	MagicValue = "RSK1"
-	Version    = 0x01
+	VersionV1  = 0x01
+	VersionV2  = 0x02
+	Version    = VersionV2
 )
 
 const (
@@ -28,6 +30,17 @@ var (
 	ErrInvalidNameLen   = errors.New("name length must be 0-64 bytes")
 	ErrMessageTooLarge  = errors.New("message exceeds maximum size")
 )
+
+func writeFull(w io.Writer, p []byte) error {
+	n, err := w.Write(p)
+	if err != nil {
+		return err
+	}
+	if n != len(p) {
+		return io.ErrShortWrite
+	}
+	return nil
+}
 
 // Hello represents the HELLO message.
 type Hello struct {
@@ -62,7 +75,7 @@ func WriteHello(w io.Writer, h Hello) error {
 		return ErrMessageTooLarge
 	}
 
-	if _, err := w.Write(h.Magic[:]); err != nil {
+	if err := writeFull(w, h.Magic[:]); err != nil {
 		return err
 	}
 
@@ -75,7 +88,7 @@ func WriteHello(w io.Writer, h Hello) error {
 		return err
 	}
 
-	if _, err := w.Write(h.Token); err != nil {
+	if err := writeFull(w, h.Token); err != nil {
 		return err
 	}
 
@@ -96,7 +109,7 @@ func WriteHello(w io.Writer, h Hello) error {
 	}
 
 	if len(h.Name) > 0 {
-		if _, err := w.Write([]byte(h.Name)); err != nil {
+		if err := writeFull(w, []byte(h.Name)); err != nil {
 			return err
 		}
 	}
@@ -236,7 +249,7 @@ func WriteHelloResp(w io.Writer, h HelloResp) error {
 	}
 
 	if len(h.Message) > 0 {
-		if _, err := w.Write([]byte(h.Message)); err != nil {
+		if err := writeFull(w, []byte(h.Message)); err != nil {
 			return err
 		}
 	}
@@ -320,7 +333,7 @@ func WriteConnectReq(w io.Writer, addr string) error {
 		return err
 	}
 
-	if _, err := w.Write([]byte(addr)); err != nil {
+	if err := writeFull(w, []byte(addr)); err != nil {
 		return err
 	}
 
@@ -343,4 +356,100 @@ func ReadConnectReq(r io.Reader) (string, error) {
 	}
 
 	return string(addrBytes), nil
+}
+
+// Status codes for CONNECT_RESP.
+const (
+	ConnectStatusOK         = 0x00
+	ConnectStatusBlocked    = 0x01
+	ConnectStatusDialFailed = 0x02
+	ConnectStatusBadRequest = 0x03
+)
+
+var ErrInvalidConnectStatus = errors.New("invalid CONNECT_RESP status")
+
+// ConnectResp represents the CONNECT_RESP message introduced in protocol v2.
+type ConnectResp struct {
+	Version uint8
+	Status  uint8
+	Message string
+}
+
+func isValidConnectStatus(status uint8) bool {
+	switch status {
+	case ConnectStatusOK, ConnectStatusBlocked, ConnectStatusDialFailed, ConnectStatusBadRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// WriteConnectResp encodes and writes a CONNECT_RESP message.
+func WriteConnectResp(w io.Writer, resp ConnectResp) error {
+	if resp.Version != Version {
+		return ErrInvalidVersion
+	}
+	if !isValidConnectStatus(resp.Status) {
+		return ErrInvalidConnectStatus
+	}
+	if len(resp.Message) > MaxMessageLen {
+		return ErrInvalidMessageLen
+	}
+
+	if err := binary.Write(w, binary.BigEndian, resp.Version); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, resp.Status); err != nil {
+		return err
+	}
+
+	msgLen := uint8(len(resp.Message))
+	if err := binary.Write(w, binary.BigEndian, msgLen); err != nil {
+		return err
+	}
+
+	if len(resp.Message) > 0 {
+		if err := writeFull(w, []byte(resp.Message)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ReadConnectResp reads and decodes a CONNECT_RESP message.
+func ReadConnectResp(r io.Reader) (ConnectResp, error) {
+	var resp ConnectResp
+
+	if err := binary.Read(r, binary.BigEndian, &resp.Version); err != nil {
+		return resp, err
+	}
+	if resp.Version != Version {
+		return resp, ErrInvalidVersion
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &resp.Status); err != nil {
+		return resp, err
+	}
+	if !isValidConnectStatus(resp.Status) {
+		return resp, ErrInvalidConnectStatus
+	}
+
+	var msgLen uint8
+	if err := binary.Read(r, binary.BigEndian, &msgLen); err != nil {
+		return resp, err
+	}
+	if msgLen > MaxMessageLen {
+		return resp, ErrInvalidMessageLen
+	}
+
+	if msgLen > 0 {
+		msgBytes := make([]byte, msgLen)
+		if _, err := io.ReadFull(r, msgBytes); err != nil {
+			return resp, err
+		}
+		resp.Message = string(msgBytes)
+	}
+
+	return resp, nil
 }

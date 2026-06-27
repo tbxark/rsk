@@ -78,7 +78,7 @@ func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx cont
 			return nil, err
 		}
 
-		if err := common.SetReadDeadline(stream, 5*time.Second); err != nil {
+		if err := stream.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 			_ = stream.Close()
 			return nil, err
 		}
@@ -87,6 +87,26 @@ func (m *SOCKSManager) createDialer(port int, sess *yamux.Session) func(ctx cont
 			_ = stream.Close()
 			m.logger.Error("Failed to write CONNECT_REQ", "addr", addr, "error", err)
 			return nil, err
+		}
+
+		if err := common.SetReadDeadline(stream, 5*time.Second); err != nil {
+			_ = stream.Close()
+			return nil, err
+		}
+
+		resp, err := proto.ReadConnectResp(stream)
+		if err != nil {
+			_ = stream.Close()
+			m.logger.Error("Failed to read CONNECT_RESP", "addr", addr, "error", err)
+			return nil, err
+		}
+
+		if resp.Status != proto.ConnectStatusOK {
+			_ = stream.Close()
+			if resp.Message != "" {
+				return nil, fmt.Errorf("client failed to connect to target: %s", resp.Message)
+			}
+			return nil, fmt.Errorf("client failed to connect to target with status %d", resp.Status)
 		}
 
 		if err := common.ClearDeadline(stream); err != nil {

@@ -13,7 +13,24 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tbxark/rsk/pkg/rsk/proto"
 )
+
+func newYamuxPair(t *testing.T) (*yamux.Session, *yamux.Session) {
+	t.Helper()
+
+	clientConn, serverConn := net.Pipe()
+	yamuxConfig := yamux.DefaultConfig()
+	serverSess, err := yamux.Server(serverConn, yamuxConfig)
+	require.NoError(t, err)
+	clientSess, err := yamux.Client(clientConn, yamuxConfig)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = clientSess.Close() })
+	t.Cleanup(func() { _ = serverSess.Close() })
+
+	return serverSess, clientSess
+}
 
 func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -28,15 +45,7 @@ func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 	require.NoError(t, err)
 	defer release()
 
-	// Create mock yamux session
-	client, server := net.Pipe()
-	defer func() { _ = client.Close() }()
-	defer func() { _ = server.Close() }()
-
-	yamuxConfig := yamux.DefaultConfig()
-	sess, err := yamux.Server(server, yamuxConfig)
-	require.NoError(t, err)
-	defer func() { _ = sess.Close() }()
+	sess, clientSess := newYamuxPair(t)
 
 	mockListener := &mockNetListener{}
 	meta := ClientMeta{ClientName: "test"}
@@ -47,18 +56,71 @@ func TestSOCKSManager_ConnectionCounting(t *testing.T) {
 	// Create dialer
 	dialer := socksManager.createDialer(port, sess)
 
-	// Test successful connection increment
+	streamHandled := make(chan struct{})
+	go func() {
+		defer close(streamHandled)
+		stream, err := clientSess.AcceptStream()
+		require.NoError(t, err)
+		defer func() { _ = stream.Close() }()
+
+		addr, err := proto.ReadConnectReq(stream)
+		require.NoError(t, err)
+		assert.Equal(t, "example.com:80", addr)
+
+		err = proto.WriteConnectResp(stream, proto.ConnectResp{Version: proto.Version, Status: proto.ConnectStatusOK})
+		require.NoError(t, err)
+	}()
+
 	ctx := context.Background()
-
-	// First connection should succeed
 	conn1, err := dialer(ctx, "tcp", "example.com:80")
-	if err == nil {
-		defer func() { _ = conn1.Close() }()
-		assert.Equal(t, 1, registry.GetConnectionCount(port))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, registry.GetConnectionCount(port))
 
-	// Note: The actual connection will fail because we don't have a real yamux client,
-	// but we can test the increment/decrement logic
+	_ = conn1.Close()
+	assert.Equal(t, 0, registry.GetConnectionCount(port))
+
+	select {
+	case <-streamHandled:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for yamux stream handler")
+	}
+}
+
+func TestSOCKSManager_DialerFailsOnConnectRespError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	registry := NewRegistry()
+	socksManager := NewSOCKSManager(registry, logger, "127.0.0.1")
+
+	port := 20001
+	release, err := registry.ReservePorts([]int{port})
+	require.NoError(t, err)
+	defer release()
+
+	sess, clientSess := newYamuxPair(t)
+	err = registry.BindSession(port, sess, &mockNetListener{}, ClientMeta{ClientName: "test"}, 3)
+	require.NoError(t, err)
+
+	go func() {
+		stream, err := clientSess.AcceptStream()
+		require.NoError(t, err)
+		defer func() { _ = stream.Close() }()
+
+		_, err = proto.ReadConnectReq(stream)
+		require.NoError(t, err)
+		err = proto.WriteConnectResp(stream, proto.ConnectResp{
+			Version: proto.Version,
+			Status:  proto.ConnectStatusBlocked,
+			Message: "blocked by test",
+		})
+		require.NoError(t, err)
+	}()
+
+	dialer := socksManager.createDialer(port, sess)
+	conn, err := dialer(context.Background(), "tcp", "example.com:80")
+	require.Error(t, err)
+	assert.Nil(t, conn)
+	assert.Contains(t, err.Error(), "blocked by test")
+	assert.Equal(t, 0, registry.GetConnectionCount(port))
 }
 
 func TestSOCKSManager_ConnectionLimit(t *testing.T) {

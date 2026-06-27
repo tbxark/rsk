@@ -20,6 +20,34 @@ type Client struct {
 	Logger         *slog.Logger
 }
 
+func writeConnectResp(stream net.Conn, status uint8, message string, logger *slog.Logger) bool {
+	if len(message) > proto.MaxMessageLen {
+		message = message[:proto.MaxMessageLen]
+	}
+
+	if err := stream.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		logger.Error("Failed to set write deadline for CONNECT_RESP", "error", err)
+		return false
+	}
+
+	err := proto.WriteConnectResp(stream, proto.ConnectResp{
+		Version: proto.Version,
+		Status:  status,
+		Message: message,
+	})
+	if err != nil {
+		logger.Error("Failed to write CONNECT_RESP", "status", status, "error", err)
+		return false
+	}
+
+	if err := common.ClearDeadline(stream); err != nil {
+		logger.Error("Failed to clear stream deadline", "error", err)
+		return false
+	}
+
+	return true
+}
+
 func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFilter, logger *slog.Logger) {
 	defer func() {
 		_ = stream.Close()
@@ -33,6 +61,11 @@ func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFil
 	addr, err := proto.ReadConnectReq(stream)
 	if err != nil {
 		logger.Error("Failed to read CONNECT_REQ", "error", err)
+		writeConnectResp(stream, proto.ConnectStatusBadRequest, "Invalid CONNECT_REQ", logger)
+		return
+	}
+	if err := common.ClearDeadline(stream); err != nil {
+		logger.Error("Failed to clear stream deadline", "error", err)
 		return
 	}
 
@@ -43,20 +76,21 @@ func handleStream(stream net.Conn, dialTimeout time.Duration, filter *AddressFil
 		logger.Warn("Target address blocked by filter",
 			"addr", addr,
 			"error", err)
+		writeConnectResp(stream, proto.ConnectStatusBlocked, err.Error(), logger)
 		return
 	}
 
 	target, err := net.DialTimeout("tcp", addr, dialTimeout)
 	if err != nil {
 		logger.Warn("Failed to dial target", "addr", addr, "error", err)
+		writeConnectResp(stream, proto.ConnectStatusDialFailed, err.Error(), logger)
 		return
 	}
 	defer func() {
 		_ = target.Close()
 	}()
 
-	if err := common.ClearDeadline(stream); err != nil {
-		logger.Error("Failed to clear stream deadline", "error", err)
+	if !writeConnectResp(stream, proto.ConnectStatusOK, "", logger) {
 		return
 	}
 

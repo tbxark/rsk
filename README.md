@@ -448,13 +448,13 @@ RSK uses a custom binary protocol for efficient communication:
 
 1. **Client → Server: HELLO**
    - Magic: "RSK1" (4 bytes)
-   - Version: 0x01 (1 byte)
+   - Version: 0x02 (1 byte; 0x01 is the legacy protocol without CONNECT_RESP)
    - Token length and token (1-255 bytes)
    - Port count and ports (1-16 ports)
    - Client name length and name (0-64 bytes)
 
 2. **Server → Client: HELLO_RESP**
-   - Version: 0x01 (1 byte)
+   - Version: 0x02 (1 byte)
    - Status code (1 byte)
    - Accepted ports count and list
    - Optional message
@@ -465,7 +465,12 @@ RSK uses a custom binary protocol for efficient communication:
    - Address length (2 bytes)
    - Target address in "host:port" format
 
-2. **Bidirectional data forwarding** over yamux stream
+2. **Client → Server: CONNECT_RESP** (per stream)
+   - Version: 0x02 (1 byte)
+   - Status code (1 byte)
+   - Optional message length and message (0-255 bytes)
+
+3. **Bidirectional data forwarding** over yamux stream starts only after `CONNECT_RESP` status OK.
 
 ## Troubleshooting
 
